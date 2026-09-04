@@ -1,0 +1,26 @@
+{
+  "name": "@blackboxmethod/validator",
+  "version": "0.1.0",
+  "description": "Deterministic doctrine-rule validator for Black Box Method generated workouts",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./context": "./dist/context.js",
+    "./persist": "./dist/persist.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsx --test src/__tests__/*.test.ts",
+    "test:integration": "tsx --test src/__tests__/integration/*.test.ts"
+  },
+  "dependencies": {
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "tsx": "^4.19.2"
+  }
+}
