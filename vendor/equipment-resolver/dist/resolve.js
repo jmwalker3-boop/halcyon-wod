@@ -24,11 +24,16 @@ function ok(prescribedName, extra = {}) {
  * call sites resolve exactly as before -- only 'ok' | 'rounded' | 'needs_substitution'
  * | 'needs_load_data' can come back without an RxContext.
  *
- * Deliberately does NOT chase a substitute-of-a-substitute, and does NOT
- * invent a swap when neither data source has one on file -- a gap with no
- * resolvable answer comes back as `needs_substitution` for a human to make
- * that call, same philosophy as the original version of this function.
+ * The equipment pass DOES chase a chain of substitutes (added 2026-09-05, per
+ * John's request for Ring Push-up -> Plate Push-up -> Push-up): if the first
+ * substitute still has its own gap, and THAT movement has its own row in
+ * movement_equipment_substitutes, the chain keeps walking until something
+ * resolves, a movement repeats (cycle guard), or MAX_SUBSTITUTE_HOPS is hit.
+ * Still does NOT invent a swap when no data source has one on file -- a gap
+ * with no resolvable answer (chain exhausted or absent) comes back as
+ * `needs_substitution`, reporting the last movement actually tried.
  */
+const MAX_SUBSTITUTE_HOPS = 5;
 export function resolveMovementForAthlete(movement, owned, rx = {}) {
     const prescribedName = movement.name;
     let current = { name: movement.name, equipment: movement.equipment };
@@ -47,24 +52,28 @@ export function resolveMovementForAthlete(movement, owned, rx = {}) {
         }
     }
     // 2. Equipment gap check, against whichever movement we're on after step 1.
+    // Chases a chain of substitutes (see the function header) rather than
+    // stopping after one hop -- e.g. Ring Push-up -> Plate Push-up -> Push-up,
+    // so an athlete with neither rings nor plates still lands on plain Push-up.
     let gap = checkEquipmentGap(current.name, current.equipment, owned.tags);
     if (!gap.ok) {
-        const swap = rx.equipmentSubstitutes?.get(current.name.toLowerCase());
-        if (swap) {
-            const swapGap = checkEquipmentGap(swap.name, swap.equipment, owned.tags);
-            if (swapGap.ok) {
-                // Fully resolved -- the athlete has everything the substitute needs.
-                current = swap;
-                scaledBecause = 'equipment';
-                gap = swapGap;
-            }
-            else {
-                // The substitute on file has its own gap -- still not resolvable
-                // automatically, but report the substitute's gap (more useful than
-                // the original's) rather than pretending nothing was tried.
-                gap = swapGap;
-                current = swap;
-            }
+        const seen = new Set([current.name.toLowerCase()]);
+        for (let hops = 0; hops < MAX_SUBSTITUTE_HOPS; hops++) {
+            const swap = rx.equipmentSubstitutes?.get(current.name.toLowerCase());
+            if (!swap || seen.has(swap.name.toLowerCase()))
+                break; // no data, or a cycle in the substitute chain
+            seen.add(swap.name.toLowerCase());
+            current = swap;
+            scaledBecause = 'equipment';
+            gap = checkEquipmentGap(current.name, current.equipment, owned.tags);
+            if (gap.ok)
+                break; // fully resolved -- the athlete has everything this link in the chain needs
+        }
+        if (!gap.ok) {
+            // Chain exhausted (or never existed) without resolving -- report the
+            // last movement actually tried (more useful than the original), but
+            // this wasn't a real scale since nothing came back 'ok'.
+            scaledBecause = null;
         }
     }
     if (!gap.ok) {
