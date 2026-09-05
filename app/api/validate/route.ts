@@ -16,11 +16,21 @@
 // all (the generation engine itself would call runValidator directly,
 // in-process, without going through this HTTP boundary -- this route is
 // for a coach-facing "re-validate this draft" action in the UI).
-
+//
+// Rule config: reads the live `rules` table (mergeRuleConfig'd over
+// DEFAULT_RULE_CONFIG so a missing row or an incomplete config JSON still
+// falls back cleanly per-field) instead of the hardcoded defaults -- this
+// was the doc's own flagged landmine (handover Section 10 #15): a coach can
+// tune rule thresholds from the `rules` table without a code deploy, but
+// nothing actually read that table until now. `config` has no `active` key
+// inside the jsonb (that's the table's own separate column), so it's
+// spliced back in per row before merging -- DEFAULT_RULE_CONFIG's shape
+// carries `active` alongside each rule's fields, and mergeRuleConfig
+// expects `fromDb` to match that same per-rule shape.
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getPool } from '@/lib/db/pool';
-import { runValidator, DEFAULT_RULE_CONFIG } from '@blackboxmethod/validator';
+import { runValidator, mergeRuleConfig } from '@blackboxmethod/validator';
 import { fetchContext } from '@blackboxmethod/validator/context';
 import { persistValidationResult } from '@blackboxmethod/validator/persist';
 
@@ -56,7 +66,14 @@ export async function POST(request: Request) {
 
   const { calendar_slot_id, draft_sequence } = draftRow.rows[0];
   const context = await fetchContext(pool, calendar_slot_id);
-  const outcome = runValidator(draft_sequence, context, DEFAULT_RULE_CONFIG);
+
+  const { rows: ruleRows } = await pool.query('select name, config, active from public.rules');
+  const fromDb = Object.fromEntries(
+    ruleRows.map((row: any) => [row.name, { ...(row.config ?? {}), active: row.active }]),
+  );
+  const ruleConfig = mergeRuleConfig(fromDb);
+
+  const outcome = runValidator(draft_sequence, context, ruleConfig);
   const validationResultId = await persistValidationResult(pool, generationDraftId, outcome);
 
   return NextResponse.json({ validationResultId, ...outcome });
