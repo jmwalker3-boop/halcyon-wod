@@ -172,7 +172,10 @@ export default async function DashboardPage() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="hw-h1" style={{ fontSize: 22 }}>{todayLabel}</div>
           </div>
-          <Link href="/settings" className="hw-link-back">Setup</Link>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {isCoachOrAdmin && <Link href="/coach" className="hw-link-back">Coach Deck</Link>}
+            <Link href="/settings" className="hw-link-back">Setup</Link>
+          </div>
         </div>
 
         <p className="hw-lede" style={{ fontSize: 15, fontWeight: 700 }}>
