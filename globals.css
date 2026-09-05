@@ -1,0 +1,299 @@
+:root {
+  color-scheme: light dark;
+  --bg: #0b0b0c;
+  --fg: #f2f2f0;
+  --muted: #9a9a95;
+  --accent: #c98a4b;
+  --border: #2a2a28;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+}
+
+a {
+  color: var(--accent);
+}
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+input, button {
+  font: inherit;
+}
+
+input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+}
+
+button {
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #1a1204;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ————————————————————————————————————————————————————————————
+   HalcyonWod product UI ("hw-" prefix), 2026-09-05.
+
+   This is the settled visual direction from the "HalcyonWod PWA
+   mockups" Claude Design canvas (screens 2a-2e, 3a-3d) -- cyan paper,
+   cream sticker cards, all-black 3-4px borders, flat offset
+   box-shadows instead of blur, Bungee for display type, Space Grotesk
+   for body copy, Space Mono for labels/numbers/badges. Per John: this
+   is the real brand direction going forward, distinct from (and
+   superseding, long-term) the earlier retro-sunset marketing mockup.
+
+   Scoped under "hw-" and applied only inside pages that opt in
+   (dashboard, settings) rather than replacing the base tokens above,
+   so /login and the root page aren't visually changed by a pass that
+   didn't touch them.
+   ———————————————————————————————————————————————————————————— */
+
+:root {
+  --hw-ink: #120C1F;
+  --hw-paper: #FFF8EC;
+  --hw-cyan: #22E0D6;
+  --hw-mustard: #FFD52E;
+  --hw-pink: #FF2E93;
+  --hw-pink-deep: #D6006E;
+  --hw-violet: #7B45E8;
+  --hw-orange: #FF7A1F;
+  --hw-navy: #0E1B2A;
+}
+
+.hw-shell {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  color: var(--hw-ink);
+  background-color: var(--hw-cyan);
+  background-image:
+    radial-gradient(#00000016 .8px, transparent .9px),
+    radial-gradient(#FFFFFF66 .8px, transparent .9px),
+    repeating-linear-gradient(135deg, var(--hw-cyan) 0 70px, #2BE9DF 70px 140px);
+  background-size: 3px 3px, 4px 4px, auto;
+  min-height: 100vh;
+}
+
+.hw-wrap {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 28px 20px 40px;
+}
+
+.hw-eyebrow-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hw-eyebrow {
+  display: inline-block;
+  font: 700 9px/1 'Space Mono', monospace;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--hw-mustard);
+  background: var(--hw-ink);
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+.hw-eyebrow-light {
+  font: 700 9px/1 'Space Mono', monospace;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--hw-ink);
+  background: var(--hw-mustard);
+  border: 2px solid var(--hw-ink);
+  border-radius: 999px;
+  padding: 5px 9px;
+  display: inline-block;
+}
+
+.hw-h1 {
+  font: 400 30px/1 'Bungee', 'Space Grotesk', sans-serif;
+  color: var(--hw-paper);
+  text-shadow: 3px 3px 0 var(--hw-ink);
+  margin: 12px 0 0;
+}
+
+.hw-h2 {
+  font: 400 20px/1.1 'Bungee', 'Space Grotesk', sans-serif;
+  color: var(--hw-ink);
+  margin: 0;
+}
+
+.hw-h3 {
+  font: 400 16px/1.1 'Bungee', 'Space Grotesk', sans-serif;
+  color: var(--hw-ink);
+  margin: 0;
+}
+
+.hw-lede {
+  font: 400 13px/1.5 'Space Grotesk', sans-serif;
+  color: rgba(18, 12, 31, 0.8);
+  margin: 8px 0 0;
+}
+
+.hw-label {
+  font: 700 9px/1 'Space Mono', monospace;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.hw-card {
+  border: 4px solid var(--hw-ink);
+  border-radius: 16px;
+  background: var(--hw-paper);
+  box-shadow: 5px 5px 0 var(--hw-ink);
+  padding: 14px;
+}
+
+.hw-card + .hw-card,
+.hw-card + .hw-card-row {
+  margin-top: 12px;
+}
+
+.hw-card-row {
+  display: grid;
+  gap: 12px;
+}
+
+.hw-card-dark {
+  border: 4px solid var(--hw-ink);
+  border-radius: 16px;
+  background: var(--hw-navy);
+  box-shadow: 5px 5px 0 var(--hw-ink);
+  padding: 14px;
+  color: var(--hw-paper);
+}
+
+.hw-chip {
+  position: relative;
+  font: 700 11px/1 'Space Mono', monospace;
+  border: 2px solid var(--hw-ink);
+  border-radius: 999px;
+  padding: 10px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--hw-ink);
+  background: transparent;
+}
+
+.hw-chip-on {
+  background: var(--hw-ink);
+  color: var(--hw-paper);
+  border-color: var(--hw-ink);
+}
+
+.hw-pill {
+  font: 700 9px/1 'Space Mono', monospace;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hw-pill-cyan { background: var(--hw-cyan); color: var(--hw-ink); }
+.hw-pill-pink { background: var(--hw-pink); color: var(--hw-paper); }
+.hw-pill-mustard { background: var(--hw-mustard); color: var(--hw-ink); }
+.hw-pill-dark { background: var(--hw-ink); color: var(--hw-mustard); }
+.hw-pill-outline { background: transparent; color: var(--hw-ink); border: 2px solid var(--hw-ink); }
+
+.hw-btn {
+  display: block;
+  width: 100%;
+  border: 4px solid var(--hw-ink);
+  border-radius: 999px;
+  padding: 16px;
+  text-align: center;
+  font: 400 17px/1 'Bungee', 'Space Grotesk', sans-serif;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.hw-btn-mustard {
+  background: var(--hw-mustard);
+  color: var(--hw-ink);
+  box-shadow: 5px 5px 0 var(--hw-ink);
+}
+
+.hw-btn-dark {
+  background: var(--hw-ink);
+  color: var(--hw-mustard);
+  box-shadow: 5px 5px 0 var(--hw-pink);
+}
+
+.hw-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.hw-muted {
+  color: rgba(18, 12, 31, 0.6);
+}
+
+.hw-error {
+  color: var(--hw-pink-deep);
+  font-weight: 700;
+}
+
+.hw-link-back {
+  font: 700 9px/1 'Space Mono', monospace;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  color: var(--hw-mustard);
+  background: var(--hw-ink);
+  padding: 7px 10px;
+  border-radius: 999px;
+  display: inline-block;
+  text-decoration: none;
+}
+
+.hw-sticky-bar {
+  position: sticky;
+  bottom: 0;
+  margin: 20px -20px -40px;
+  border-top: 4px solid var(--hw-ink);
+  background: var(--hw-mustard);
+  padding: 14px 20px 30px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
