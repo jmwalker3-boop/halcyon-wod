@@ -79,7 +79,7 @@ export default function LoginPage() {
           />
         </div>
         <div className="hw-h1" style={{ textAlign: 'center', fontSize: 28 }}>HalcyonWod</div>
-        <p className="hw-lede" style={{ textAlign: 'center' }}>Coach-programmed CrossFit, scaled to you.</p>
+        <p className="hw-lede" style={{ textAlign: 'center' }}>Coach-programmed GPP, scaled to you.</p>
 
         <div className="hw-card" style={{ marginTop: 24 }}>
           {status === 'sent' ? (
@@ -126,4 +126,3 @@ export default function LoginPage() {
     </main>
   );
 }
-
