@@ -6,6 +6,10 @@ import { createClient } from '@/lib/supabase/client';
 // Magic-link only, deliberately -- no password field, so there's no
 // password-reset flow to build for a v0 skeleton. Trades a slightly slower
 // sign-in (check your email) for skipping an entire auth surface.
+//
+// Restyled 2026-09-05 to the hw- design system (same one as /dashboard and
+// /settings) so this is the first thing an athlete sees on-brand rather
+// than the plain base-token page it used to be. Logic untouched.
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -65,25 +69,61 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="container">
-      <h1>Black Box Method</h1>
-      {status === 'sent' ? (
-        <p>Check {email} for a sign-in link.</p>
-      ) : (
-        <form onSubmit={handleSubmit}>
-          <input
-            type="email"
-            required
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+    <main className="hw-shell" style={{ display: 'flex', alignItems: 'center' }}>
+      <div className="hw-wrap" style={{ width: '100%' }}>
+        <div style={{ textAlign: 'center', marginBottom: 8 }}>
+          <img
+            src="/logo-dot.png"
+            alt="HalcyonWod"
+            style={{ width: 84, height: 84, objectFit: 'contain', margin: '0 auto' }}
           />
-          <button type="submit" disabled={status === 'sending'}>
-            {status === 'sending' ? 'Sending…' : 'Send sign-in link'}
-          </button>
-          {error && <p style={{ color: '#e07a7a' }}>{error}</p>}
-        </form>
-      )}
+        </div>
+        <div className="hw-h1" style={{ textAlign: 'center', fontSize: 28 }}>HalcyonWod</div>
+        <p className="hw-lede" style={{ textAlign: 'center' }}>Coach-programmed CrossFit, scaled to you.</p>
+
+        <div className="hw-card" style={{ marginTop: 24 }}>
+          {status === 'sent' ? (
+            <>
+              <span className="hw-eyebrow">Check your inbox</span>
+              <p style={{ marginTop: 12, marginBottom: 0 }}>
+                Sent a sign-in link to <strong>{email}</strong>. Open it in this same browser.
+              </p>
+            </>
+          ) : (
+            <form onSubmit={handleSubmit}>
+              <span className="hw-eyebrow">Sign in</span>
+              <input
+                type="email"
+                required
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  marginTop: 14,
+                  font: '700 14px/1 "Space Grotesk", sans-serif',
+                  padding: '14px 16px',
+                  border: '3px solid var(--hw-ink)',
+                  borderRadius: 999,
+                  background: 'var(--hw-paper)',
+                  color: 'var(--hw-ink)',
+                }}
+              />
+              <button
+                type="submit"
+                disabled={status === 'sending'}
+                className="hw-btn hw-btn-mustard"
+                style={{ marginTop: 14, fontSize: 15, padding: 14 }}
+              >
+                {status === 'sending' ? 'Sending…' : 'Send sign-in link'}
+              </button>
+              {error && <p className="hw-error" style={{ fontSize: 13, marginTop: 12, marginBottom: 0 }}>{error}</p>}
+            </form>
+          )}
+        </div>
+      </div>
     </main>
   );
 }
+
