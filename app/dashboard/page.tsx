@@ -164,6 +164,21 @@ export default async function DashboardPage() {
     .toUpperCase()
     .replace(',', ' ·');
 
+  // Rolling 7-day-ahead window (today through today+6) -- the product's own
+  // pitch (Section 1 of the handover doc) is "everyone sees the same base
+  // workout up to 7 days ahead," but this page only ever showed today until
+  // now. Built the same way Coach Deck builds its Mon-Sun week: a fixed
+  // array of ISO dates, a byDate Map per program built from every cycle's
+  // calendar_slots (not just today's), and every one of the 7 dates
+  // rendered even when there's no calendar_slot row at all for it yet --
+  // that's a real, distinct state from "slot exists but workout not
+  // generated," and athletes should be able to tell those apart.
+  const weekDates = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(`${today}T00:00:00`);
+    d.setDate(d.getDate() + i);
+    return d.toISOString().slice(0, 10);
+  });
+
   return (
     <main className="hw-shell">
       <div className="hw-wrap">
@@ -172,8 +187,9 @@ export default async function DashboardPage() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="hw-h1" style={{ fontSize: 22 }}>{todayLabel}</div>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {isCoachOrAdmin && <Link href="/coach" className="hw-link-back">Coach Deck</Link>}
+            <Link href="/movements" className="hw-link-back">Movements</Link>
             <Link href="/settings" className="hw-link-back">Setup</Link>
           </div>
         </div>
@@ -191,41 +207,55 @@ export default async function DashboardPage() {
 
         {enrollments?.map((enrollment: any) => {
           const program = enrollment.programs;
-          const todaysEntries = (program?.program_cycles ?? []).flatMap((cycle: any) =>
-            (cycle.calendar_slots ?? [])
-              .filter((slot: any) => slot.date === today)
-              .map((slot: any) => ({ slot, cycle })),
+          const allEntries = (program?.program_cycles ?? []).flatMap((cycle: any) =>
+            (cycle.calendar_slots ?? []).map((slot: any) => ({ slot, cycle })),
           );
+          const byDate = new Map<string, any>(allEntries.map((e: any) => [e.slot.date, e]));
+          const weekEntries = weekDates.map((date) => ({ date, entry: byDate.get(date) }));
 
           return (
             <div key={enrollment.program_id} style={{ marginTop: 16 }}>
               <div className="hw-eyebrow-row">
                 <span className="hw-h3">{program?.name}</span>
+                <span className="hw-pill hw-pill-outline">Next 7 days</span>
               </div>
 
-              {todaysEntries.length === 0 && (
-                <div className="hw-card" style={{ marginTop: 10 }}>
-                  <p className="hw-muted" style={{ margin: 0 }}>No workout scheduled today.</p>
-                </div>
-              )}
+              {weekEntries.map(({ date, entry }) => {
+                const isToday = date === today;
+                const dateLabel = isToday
+                  ? 'TODAY'
+                  : new Date(`${date}T00:00:00`)
+                      .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                      .toUpperCase();
 
-              {todaysEntries.map(({ slot, cycle }: any, i: number) => {
+                if (!entry) {
+                  return (
+                    <div key={date} style={{ marginTop: 10 }}>
+                      <span className="hw-eyebrow-light">{dateLabel}</span>
+                      <p className="hw-muted" style={{ marginTop: 8 }}>No slot scheduled.</p>
+                    </div>
+                  );
+                }
+
+                const { slot, cycle } = entry;
                 const resolved = slot.workouts ? resolveSlotEquipment(slot) : [];
                 const scaled = resolved.filter((r) => r.status === 'scaled');
                 const gaps = resolved.filter((r) => r.status === 'needs_substitution');
 
                 // Day/week-in-cycle -- real numbers derived from the cycle's own
-                // start_date + length_days, not a fabricated counter.
+                // start_date + length_days for THIS slot's date, not a fabricated
+                // counter and not always relative to today now that every day in
+                // the window renders its own card.
                 const dayNumber =
-                  Math.floor((new Date(`${today}T00:00:00`).getTime() - new Date(`${cycle.start_date}T00:00:00`).getTime()) /
+                  Math.floor((new Date(`${date}T00:00:00`).getTime() - new Date(`${cycle.start_date}T00:00:00`).getTime()) /
                     86400000) + 1;
                 const totalWeeks = Math.ceil((cycle.length_days ?? 0) / 7);
                 const weekNumber = Math.ceil(dayNumber / 7);
 
                 return (
-                  <div key={i} style={{ marginTop: 10 }}>
+                  <div key={date} style={{ marginTop: 10 }}>
                     <span className="hw-eyebrow">
-                      DAY {dayNumber}{totalWeeks ? ` · WEEK ${weekNumber} OF ${totalWeeks}` : ''}
+                      {dateLabel} · DAY {dayNumber}{totalWeeks ? ` · WEEK ${weekNumber} OF ${totalWeeks}` : ''}
                     </span>
 
                     {/* day_type/target_modalities are internal programming labels (which
@@ -253,7 +283,7 @@ export default async function DashboardPage() {
                             gap: 8,
                           }}
                         >
-                          <span className="hw-label">TODAY&apos;S WOD</span>
+                          <span className="hw-label">{isToday ? "TODAY'S WOD" : 'WOD'}</span>
                           {slot.workouts.is_benchmark && <span className="hw-pill hw-pill-dark">Benchmark</span>}
                         </div>
                         <div style={{ padding: '16px' }}>
