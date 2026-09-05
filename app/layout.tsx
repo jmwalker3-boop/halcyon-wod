@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Black Box Method',
-  description: 'Doctrine-driven CrossFit programming.',
+  description: 'Doctrine-driven GPP programming.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
