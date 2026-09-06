@@ -1,7 +1,7 @@
 import { checkEquipmentGap } from './equipmentGap.js';
 import { needsLoadRounding, roundToOwnedLoad } from './loadRounding.js';
 import { normalizeEquipmentTag } from './equipmentAliases.js';
-import { convertDistance } from './machineConversion.js';
+import { convertDistance, convertCalories } from './machineConversion.js';
 function ok(prescribedName, extra = {}) {
     return {
         prescribedName,
@@ -45,15 +45,24 @@ const CAP_TAG_DISPLAY_NAME = {
 // Only called once a gap is confirmed unresolved by the existing
 // skill/equipment-substitute passes -- this is a third, narrower pass that
 // applies only when the gap is specifically a monostructural machine and
-// the workout recorded a distance. Deliberately returns every owned
-// alternative rather than picking one: an athlete who owns both a rower and
-// an assault bike should see both options, not have this silently choose
-// for them (same "human makes the call" posture as needs_substitution).
-function computeMachineScaleOptions(equipment, distanceM, ownedTags) {
+// the workout recorded EITHER a distance or a calorie count (never both --
+// see resolveMovementForAthlete's call site). Deliberately returns every
+// owned alternative rather than picking one: an athlete who owns both a
+// rower and an assault bike should see both options, not have this
+// silently choose for them (same "human makes the call" posture as
+// needs_substitution).
+//
+// unit is 'm' or 'cal' -- which CAP chart (and which convert function) this
+// particular prescription's value belongs to. Mixing the two would silently
+// read a calorie count against the meters chart (or vice versa) and produce
+// a nonsense answer with no error, so this is a required, explicit choice
+// at the call site rather than an inferred default.
+function computeMachineScaleOptions(equipment, value, unit, ownedTags) {
     const fromTag = equipment.map(normalizeEquipmentTag).find((tag) => tag in EQUIPMENT_TAG_TO_CAP_MACHINE);
     if (!fromTag)
         return null;
     const fromMachine = EQUIPMENT_TAG_TO_CAP_MACHINE[fromTag];
+    const convert = unit === 'cal' ? convertCalories : convertDistance;
     const options = [];
     const seen = new Set();
     const addOption = (toMachine, displayName) => {
@@ -61,20 +70,27 @@ function computeMachineScaleOptions(equipment, distanceM, ownedTags) {
             return;
         seen.add(displayName);
         if (toMachine === 'run') {
-            // Run distances are never sex-split in this methodology -- everyone
-            // runs the same distance, full stop (John, 2026-09-06). The CAP
-            // chart's own Run column is unisex for exactly this reason; only the
-            // OTHER machines (Row, Ski, Bike, Echo) carry separate male/female
-            // figures, because those substitute for a physical demand that
-            // itself scales by sex. Picking a single number still means picking
-            // an axis for the FROM side's sex-specific distance -- male, per
-            // John's call -- rather than showing two Run numbers that would
-            // wrongly imply Run itself is sex-scaled.
-            const { male } = convertDistance(distanceM, fromMachine, toMachine);
-            options.push({ machine: displayName, unisex: true, distance: male });
+            // Run is never sex-split in this methodology -- everyone runs the
+            // same distance, full stop (John, 2026-09-06). The CAP chart's own
+            // Run column is unisex for exactly this reason (and is always a
+            // METERS distance, even when the FROM side was calorie-based --
+            // you don't "run calories"); only the OTHER machines (Row, Ski,
+            // Bike, Echo) carry separate male/female figures, because those
+            // substitute for a physical demand that itself scales by sex.
+            // Picking a single number still means picking an axis for the
+            // FROM side's sex-specific value -- male, per John's call --
+            // rather than showing two Run numbers that would wrongly imply
+            // Run itself is sex-scaled.
+            const { male } = convert(value, fromMachine, toMachine);
+            options.push({ machine: displayName, unit: 'm', unisex: true, value: male });
             return;
         }
-        options.push({ machine: displayName, unisex: false, ...convertDistance(distanceM, fromMachine, toMachine) });
+        options.push({
+            machine: displayName,
+            unit,
+            unisex: false,
+            ...convert(value, fromMachine, toMachine),
+        });
     };
     // Run always qualifies -- its equipment tag is "none", so it's never
     // something an athlete needs to have separately recorded as owned.
@@ -144,9 +160,15 @@ export function resolveMovementForAthlete(movement, owned, rx = {}) {
         }
     }
     if (!gap.ok) {
+        // Distance takes priority if a movement somehow had both recorded
+        // (shouldn't happen -- a coach writes a piece as either a distance
+        // or a calorie target, never both), so this never silently prefers
+        // calories over an explicit distance.
         const machineScaleOptions = movement.prescribedDistanceM != null
-            ? computeMachineScaleOptions(current.equipment, movement.prescribedDistanceM, owned.tags)
-            : null;
+            ? computeMachineScaleOptions(current.equipment, movement.prescribedDistanceM, 'm', owned.tags)
+            : movement.prescribedCalories != null
+                ? computeMachineScaleOptions(current.equipment, movement.prescribedCalories, 'cal', owned.tags)
+                : null;
         return {
             prescribedName,
             movementName: prescribedName,
