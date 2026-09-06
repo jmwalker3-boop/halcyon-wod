@@ -25,6 +25,7 @@ export type Modality = 'M' | 'G' | 'W';
 export type ScalingTier = 'intermediate' | 'beginner';
 export type AthleteSkillLevel = 'rx' | 'intermediate' | 'beginner';
 export type SkillCategory = 'pull_up_bar' | 'rings' | 'handstand' | 'hanging_core' | 'rope_climb' | 'pistol';
+export type ResultType = 'time' | 'rounds_reps' | 'load' | 'cals' | 'reps';
 
 export interface Database {
   public: {
@@ -139,6 +140,72 @@ export interface Database {
         Row: { id: string; profile_id: string; skill_category: SkillCategory; level: AthleteSkillLevel; updated_at: string };
         Insert: { id?: string; profile_id: string; skill_category: SkillCategory; level?: AthleteSkillLevel; updated_at?: string };
         Update: Partial<{ level: AthleteSkillLevel; updated_at: string }>;
+        Relationships: [];
+      };
+      workout_logs: {
+        Row: {
+          id: string;
+          profile_id: string;
+          calendar_slot_id: string | null;
+          workout_id: string;
+          movement_id: string | null;
+          result_type: ResultType;
+          result_value: Record<string, unknown>;
+          rpe: number | null;
+          performed_at: string;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          calendar_slot_id?: string | null;
+          workout_id: string;
+          movement_id?: string | null;
+          result_type: ResultType;
+          result_value: Record<string, unknown>;
+          rpe?: number | null;
+          performed_at?: string;
+        };
+        Update: never;
+        Relationships: [];
+      };
+      personal_records: {
+        Row: {
+          id: string;
+          profile_id: string;
+          movement_id: string;
+          record_type: string;
+          value: number;
+          achieved_at: string;
+          workout_log_id: string | null;
+        };
+        Insert: {
+          id?: string;
+          profile_id: string;
+          movement_id: string;
+          record_type: string;
+          value: number;
+          achieved_at: string;
+          workout_log_id?: string | null;
+        };
+        Update: never;
+        Relationships: [];
+      };
+      posts: {
+        Row: { id: string; profile_id: string; body: string; media_url: string | null; workout_log_id: string | null; created_at: string };
+        Insert: { id?: string; profile_id: string; body: string; media_url?: string | null; workout_log_id?: string | null };
+        Update: never;
+        Relationships: [];
+      };
+      comments: {
+        Row: { id: string; post_id: string; profile_id: string; body: string; created_at: string };
+        Insert: { id?: string; post_id: string; profile_id: string; body: string };
+        Update: never;
+        Relationships: [];
+      };
+      reactions: {
+        Row: { id: string; post_id: string | null; comment_id: string | null; profile_id: string; type: string; created_at: string };
+        Insert: { id?: string; post_id?: string | null; comment_id?: string | null; profile_id: string; type: string };
+        Update: never;
         Relationships: [];
       };
       generation_drafts: {
