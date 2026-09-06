@@ -1,17 +1,27 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
-// Magic-link only, deliberately -- no password field, so there's no
-// password-reset flow to build for a v0 skeleton. Trades a slightly slower
-// sign-in (check your email) for skipping an entire auth surface.
+// Magic-link-only originally, deliberately -- no password field, so there
+// was no password-reset flow to build for a v0 skeleton. Extended
+// 2026-09-07 to add password sign-in ALONGSIDE the magic link (not instead
+// of it) -- John's request, running two accounts (admin + athlete) for
+// testing and wanting to switch between them without waiting on email each
+// time. A password is optional per-account: set one from /settings once
+// signed in, and the password field below works from then on; the magic
+// link still works regardless, since that's still how a brand-new athlete
+// gets in the door the first time.
 //
 // Restyled 2026-09-05 to the hw- design system (same one as /dashboard and
 // /settings) so this is the first thing an athlete sees on-brand rather
-// than the plain base-token page it used to be. Logic untouched.
+// than the plain base-token page it used to be.
 export default function LoginPage() {
+  const router = useRouter();
+  const [mode, setMode] = useState<'password' | 'magic-link'>('password');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -49,7 +59,7 @@ export default function LoginPage() {
     }
   }, []);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault();
     setStatus('sending');
     setError(null);
@@ -66,6 +76,23 @@ export default function LoginPage() {
       return;
     }
     setStatus('sent');
+  }
+
+  async function handlePasswordSignIn(e: React.FormEvent) {
+    e.preventDefault();
+    setStatus('sending');
+    setError(null);
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      setStatus('error');
+      setError(error.message);
+      return;
+    }
+    router.push('/dashboard');
+    router.refresh();
   }
 
   return (
@@ -90,36 +117,119 @@ export default function LoginPage() {
               </p>
             </>
           ) : (
-            <form onSubmit={handleSubmit}>
-              <span className="hw-eyebrow">Sign in</span>
-              <input
-                type="email"
-                required
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  marginTop: 14,
-                  font: '700 14px/1 "Space Grotesk", sans-serif',
-                  padding: '14px 16px',
-                  border: '3px solid var(--hw-ink)',
-                  borderRadius: 999,
-                  background: 'var(--hw-paper)',
-                  color: 'var(--hw-ink)',
-                }}
-              />
-              <button
-                type="submit"
-                disabled={status === 'sending'}
-                className="hw-btn hw-btn-mustard"
-                style={{ marginTop: 14, fontSize: 15, padding: 14 }}
-              >
-                {status === 'sending' ? 'Sending…' : 'Send sign-in link'}
-              </button>
-              {error && <p className="hw-error" style={{ fontSize: 13, marginTop: 12, marginBottom: 0 }}>{error}</p>}
-            </form>
+            <>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('password');
+                    setStatus('idle');
+                    setError(null);
+                  }}
+                  className={mode === 'password' ? 'hw-pill hw-pill-mustard' : 'hw-pill hw-pill-outline'}
+                  style={{ border: 'none', cursor: 'pointer' }}
+                >
+                  Password
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('magic-link');
+                    setStatus('idle');
+                    setError(null);
+                  }}
+                  className={mode === 'magic-link' ? 'hw-pill hw-pill-mustard' : 'hw-pill hw-pill-outline'}
+                  style={{ border: 'none', cursor: 'pointer' }}
+                >
+                  Email link
+                </button>
+              </div>
+
+              {mode === 'password' ? (
+                <form onSubmit={handlePasswordSignIn}>
+                  <span className="hw-eyebrow">Sign in</span>
+                  <input
+                    type="email"
+                    required
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      marginTop: 14,
+                      font: '700 14px/1 "Space Grotesk", sans-serif',
+                      padding: '14px 16px',
+                      border: '3px solid var(--hw-ink)',
+                      borderRadius: 999,
+                      background: 'var(--hw-paper)',
+                      color: 'var(--hw-ink)',
+                    }}
+                  />
+                  <input
+                    type="password"
+                    required
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      marginTop: 10,
+                      font: '700 14px/1 "Space Grotesk", sans-serif',
+                      padding: '14px 16px',
+                      border: '3px solid var(--hw-ink)',
+                      borderRadius: 999,
+                      background: 'var(--hw-paper)',
+                      color: 'var(--hw-ink)',
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={status === 'sending'}
+                    className="hw-btn hw-btn-mustard"
+                    style={{ marginTop: 14, fontSize: 15, padding: 14 }}
+                  >
+                    {status === 'sending' ? 'Signing in…' : 'Sign in'}
+                  </button>
+                  <p className="hw-muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
+                    No password set yet? Use the email link tab once, then set one from Setup.
+                  </p>
+                  {error && <p className="hw-error" style={{ fontSize: 13, marginTop: 12, marginBottom: 0 }}>{error}</p>}
+                </form>
+              ) : (
+                <form onSubmit={handleMagicLink}>
+                  <span className="hw-eyebrow">Sign in</span>
+                  <input
+                    type="email"
+                    required
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      marginTop: 14,
+                      font: '700 14px/1 "Space Grotesk", sans-serif',
+                      padding: '14px 16px',
+                      border: '3px solid var(--hw-ink)',
+                      borderRadius: 999,
+                      background: 'var(--hw-paper)',
+                      color: 'var(--hw-ink)',
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={status === 'sending'}
+                    className="hw-btn hw-btn-mustard"
+                    style={{ marginTop: 14, fontSize: 15, padding: 14 }}
+                  >
+                    {status === 'sending' ? 'Sending…' : 'Send sign-in link'}
+                  </button>
+                  {error && <p className="hw-error" style={{ fontSize: 13, marginTop: 12, marginBottom: 0 }}>{error}</p>}
+                </form>
+              )}
+            </>
           )}
         </div>
       </div>
