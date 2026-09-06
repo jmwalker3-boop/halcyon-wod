@@ -60,7 +60,21 @@ function computeMachineScaleOptions(equipment, distanceM, ownedTags) {
         if (seen.has(displayName))
             return;
         seen.add(displayName);
-        options.push({ machine: displayName, ...convertDistance(distanceM, fromMachine, toMachine) });
+        if (toMachine === 'run') {
+            // Run distances are never sex-split in this methodology -- everyone
+            // runs the same distance, full stop (John, 2026-09-06). The CAP
+            // chart's own Run column is unisex for exactly this reason; only the
+            // OTHER machines (Row, Ski, Bike, Echo) carry separate male/female
+            // figures, because those substitute for a physical demand that
+            // itself scales by sex. Picking a single number still means picking
+            // an axis for the FROM side's sex-specific distance -- male, per
+            // John's call -- rather than showing two Run numbers that would
+            // wrongly imply Run itself is sex-scaled.
+            const { male } = convertDistance(distanceM, fromMachine, toMachine);
+            options.push({ machine: displayName, unisex: true, distance: male });
+            return;
+        }
+        options.push({ machine: displayName, unisex: false, ...convertDistance(distanceM, fromMachine, toMachine) });
     };
     // Run always qualifies -- its equipment tag is "none", so it's never
     // something an athlete needs to have separately recorded as owned.
