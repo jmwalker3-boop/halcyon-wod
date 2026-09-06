@@ -157,7 +157,16 @@ export default async function DashboardPage() {
     return resolveWorkoutForAthlete(toResolve, owned, rx);
   }
 
-  const isCoachOrAdmin = profile?.role === 'coach' || profile?.role === 'admin';
+  // Admin-only, not "coach or admin" -- John's own call (2026-09-05): a
+  // future assistant coach should be able to have an account without
+  // getting Coach Deck / internal-programming-jargon visibility, so that
+  // gate now checks the top-level role specifically rather than treating
+  // 'coach' and 'admin' as equivalent. His own account was promoted from
+  // 'coach' to 'admin' in the same pass. Nothing athlete-facing (this page,
+  // /settings, /movements) is role-gated at all, so an admin still sees
+  // everything an athlete does automatically -- there was nothing to widen
+  // there.
+  const isAdmin = profile?.role === 'admin';
 
   const todayLabel = new Date(`${today}T00:00:00`)
     .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
@@ -183,12 +192,14 @@ export default async function DashboardPage() {
     <main className="hw-shell">
       <div className="hw-wrap">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <img src="/logo-dot.png" alt="HalcyonWod" style={{ width: 52, height: 52, flex: 'none', objectFit: 'contain' }} />
+          <Link href="/dashboard" style={{ flex: 'none', lineHeight: 0 }}>
+            <img src="/logo-dot.png" alt="HalcyonWod" style={{ width: 52, height: 52, objectFit: 'contain' }} />
+          </Link>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="hw-h1" style={{ fontSize: 22 }}>{todayLabel}</div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            {isCoachOrAdmin && <Link href="/coach" className="hw-link-back">Coach Deck</Link>}
+            {isAdmin && <Link href="/coach" className="hw-link-back">Coach Deck</Link>}
             <Link href="/movements" className="hw-link-back">Movements</Link>
             <Link href="/settings" className="hw-link-back">Setup</Link>
           </div>
@@ -197,7 +208,7 @@ export default async function DashboardPage() {
         <p className="hw-lede" style={{ fontSize: 15, fontWeight: 700 }}>
           Hey{profile?.display_name ? ` ${profile.display_name}` : ''} — you&apos;re up.
         </p>
-        {isCoachOrAdmin && <p className="hw-pill hw-pill-outline" style={{ marginTop: 4 }}>{profile?.role}</p>}
+        {isAdmin && <p className="hw-pill hw-pill-outline" style={{ marginTop: 4 }}>{profile?.role}</p>}
 
         {(!enrollments || enrollments.length === 0) && (
           <div className="hw-card" style={{ marginTop: 16 }}>
@@ -264,7 +275,7 @@ export default async function DashboardPage() {
                         "Training · M/G" jargon, just the workout itself. is_benchmark stays
                         visible to everyone -- "this is a benchmark" is meaningful to an
                         athlete, not an internal doctrine detail. */}
-                    {isCoachOrAdmin && (
+                    {isAdmin && (
                       <p className="hw-muted" style={{ fontSize: 12, marginTop: 8 }}>
                         {slot.day_type} · {slot.target_modalities?.join('/') || 'no modality target'}
                       </p>
