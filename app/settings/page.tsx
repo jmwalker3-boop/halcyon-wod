@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import LogoutButton from '@/components/LogoutButton';
 import { createClient } from '@/lib/supabase/client';
 
 // Athlete-facing settings, added 2026-09-04 per John's request: a real place
@@ -78,6 +79,9 @@ export default function SettingsPage() {
   const [skillLevels, setSkillLevels] = useState<Record<string, SkillLevelValue>>({});
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordState, setPasswordState] = useState<SaveState>('idle');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -115,6 +119,28 @@ export default function SettingsPage() {
       else next.add(tag);
       return next;
     });
+  }
+
+  // Lets an account that only ever signed in via magic link set a password,
+  // so future sign-ins on /login can use the password tab instead of
+  // waiting on email each time (John's request, 2026-09-07 -- running
+  // separate admin/athlete accounts for testing, wanted a faster way to
+  // switch between them). Supabase's updateUser() works on the currently
+  // authenticated session regardless of how that session was established,
+  // so this doesn't care whether the athlete got here via link or password.
+  async function handleSetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPasswordState('saving');
+    setPasswordError(null);
+    const supabase = createClient();
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+    if (updateError) {
+      setPasswordState('error');
+      setPasswordError(updateError.message);
+      return;
+    }
+    setNewPassword('');
+    setPasswordState('saved');
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -205,7 +231,10 @@ export default function SettingsPage() {
   return (
     <main className="hw-shell">
       <form onSubmit={handleSave} className="hw-wrap" style={{ paddingBottom: 0 }}>
-        <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
+          <LogoutButton />
+        </div>
         <div className="hw-h1" style={{ fontSize: 26 }}>Your setup</div>
         <p className="hw-lede">Change these and today&apos;s workout re-scales the second you save.</p>
 
@@ -308,6 +337,51 @@ export default function SettingsPage() {
           <p className="hw-error" style={{ padding: '0 0 20px' }}>{error}</p>
         )}
       </form>
+
+      {/* Separate form/card, deliberately outside the equipment/skill form above --
+          this saves to auth, not to profile_equipment or profile_skill_levels, so it
+          has its own submit action and its own save state. */}
+      <div className="hw-wrap" style={{ paddingTop: 0 }}>
+        <form onSubmit={handleSetPassword} className="hw-card" style={{ marginTop: 4, marginBottom: 24 }}>
+          <span className="hw-eyebrow">Password sign-in</span>
+          <p className="hw-muted" style={{ fontSize: 13, marginTop: 6 }}>
+            Set a password to sign in faster next time, instead of waiting on an email link.
+          </p>
+          <input
+            type="password"
+            required
+            minLength={6}
+            placeholder="New password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            style={{
+              display: 'block',
+              width: '100%',
+              marginTop: 10,
+              font: '700 14px/1 "Space Grotesk", sans-serif',
+              padding: '12px 14px',
+              border: '2px solid var(--hw-ink)',
+              borderRadius: 8,
+              background: 'var(--hw-paper)',
+              color: 'var(--hw-ink)',
+            }}
+          />
+          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="submit"
+              disabled={passwordState === 'saving'}
+              className="hw-btn hw-btn-dark"
+              style={{ width: 'auto', padding: '10px 18px', fontSize: 13 }}
+            >
+              {passwordState === 'saving' ? 'Saving…' : 'Set password'}
+            </button>
+            {passwordState === 'saved' && <span className="hw-pill hw-pill-cyan">Saved</span>}
+            {passwordState === 'error' && passwordError && (
+              <span className="hw-error" style={{ fontSize: 12 }}>{passwordError}</span>
+            )}
+          </div>
+        </form>
+      </div>
     </main>
   );
 }
