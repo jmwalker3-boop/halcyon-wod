@@ -203,8 +203,12 @@ export default async function DashboardPage() {
             <div className="hw-h1" style={{ fontSize: 22 }}>{todayLabel}</div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {/* Movement Library (app/movements) deliberately unlinked here, 2026-09-06 --
+                John's call: it doesn't need to be athlete-facing, possibly doesn't need to
+                exist at all. Route itself left in place (harmless, unreachable without a
+                direct link) rather than deleted, since he hasn't decided that part yet. */}
             {isAdmin && <Link href="/coach" className="hw-link-back">Coach Deck</Link>}
-            <Link href="/movements" className="hw-link-back">Movements</Link>
+            {isAdmin && <Link href="/admin" className="hw-link-back">Admin</Link>}
             <Link href="/settings" className="hw-link-back">Setup</Link>
           </div>
         </div>
