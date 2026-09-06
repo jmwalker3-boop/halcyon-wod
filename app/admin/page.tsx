@@ -40,6 +40,10 @@ export default function AdminPage() {
   const [email, setEmail] = useState('');
   const [enrolling, setEnrolling] = useState(false);
   const [enrollMessage, setEnrollMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  const [pwEmail, setPwEmail] = useState('');
+  const [pwPassword, setPwPassword] = useState('');
+  const [settingPassword, setSettingPassword] = useState(false);
+  const [pwMessage, setPwMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
 
   async function loadEnrollments() {
     const supabase = createClient();
@@ -91,6 +95,35 @@ export default function AdminPage() {
     setEmail('');
     setEnrolling(false);
     await loadEnrollments();
+  }
+
+  // Server-side, not the RPC pattern the enroll form uses above -- setting
+  // ANOTHER account's password isn't something supabase.auth.updateUser()
+  // can do (that only ever touches the caller's own session), so this hits
+  // a route handler that does the write via a direct, RLS-bypassing
+  // Postgres connection instead (see app/api/admin/set-password/route.ts).
+  // John's request, 2026-09-07: no SMTP yet, so an enrolled account that
+  // never set its own password (Settings requires being logged in AS it
+  // first) was otherwise a dead end for admin to get into.
+  async function handleSetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setSettingPassword(true);
+    setPwMessage(null);
+    const res = await fetch('/api/admin/set-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: pwEmail.trim(), password: pwPassword }),
+    });
+    const body = await res.json();
+    if (!res.ok) {
+      setPwMessage({ kind: 'error', text: body.error ?? 'Something went wrong.' });
+      setSettingPassword(false);
+      return;
+    }
+    setPwMessage({ kind: 'ok', text: `Password set for ${pwEmail.trim()}.` });
+    setPwEmail('');
+    setPwPassword('');
+    setSettingPassword(false);
   }
 
   if (loadState === 'loading') {
@@ -179,6 +212,66 @@ export default function AdminPage() {
               style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: enrollMessage.kind === 'ok' ? 'var(--hw-violet)' : undefined }}
             >
               {enrollMessage.text}
+            </p>
+          )}
+        </form>
+
+        <form onSubmit={handleSetPassword} className="hw-card" style={{ marginTop: 12 }}>
+          <span className="hw-label" style={{ color: 'var(--hw-violet)' }}>Set a Password for Any Account</span>
+          <p className="hw-muted" style={{ fontSize: 12, marginTop: 8 }}>
+            For getting into an enrolled account that never set its own password (no email needed).
+          </p>
+          <input
+            type="email"
+            required
+            value={pwEmail}
+            onChange={(e) => setPwEmail(e.target.value)}
+            placeholder="athlete@example.com"
+            style={{
+              display: 'block',
+              width: '100%',
+              marginTop: 10,
+              font: '700 14px/1 "Space Grotesk", sans-serif',
+              padding: '12px 14px',
+              border: '2px solid var(--hw-ink)',
+              borderRadius: 8,
+              background: 'var(--hw-paper)',
+              color: 'var(--hw-ink)',
+            }}
+          />
+          <input
+            type="password"
+            required
+            minLength={6}
+            value={pwPassword}
+            onChange={(e) => setPwPassword(e.target.value)}
+            placeholder="New password"
+            style={{
+              display: 'block',
+              width: '100%',
+              marginTop: 8,
+              font: '700 14px/1 "Space Grotesk", sans-serif',
+              padding: '12px 14px',
+              border: '2px solid var(--hw-ink)',
+              borderRadius: 8,
+              background: 'var(--hw-paper)',
+              color: 'var(--hw-ink)',
+            }}
+          />
+          <button
+            type="submit"
+            disabled={settingPassword}
+            className="hw-btn hw-btn-dark"
+            style={{ marginTop: 12, fontSize: 15, padding: 12 }}
+          >
+            {settingPassword ? 'Setting…' : 'Set password'}
+          </button>
+          {pwMessage && (
+            <p
+              className={pwMessage.kind === 'error' ? 'hw-error' : undefined}
+              style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: pwMessage.kind === 'ok' ? 'var(--hw-violet)' : undefined }}
+            >
+              {pwMessage.text}
             </p>
           )}
         </form>
