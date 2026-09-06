@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import LogoutButton from '@/components/LogoutButton';
+import ScoreForm from '@/components/ScoreForm';
 import {
   normalizeEquipmentTag,
   resolveWorkoutForAthlete,
@@ -69,9 +70,9 @@ export default async function DashboardPage() {
         program_cycles (
           start_date, length_days,
           calendar_slots (
-            date, day_type, target_modalities,
+            id, date, day_type, target_modalities,
             workouts (
-              title, raw_text, is_benchmark, coach_notes, scaling_notes,
+              id, title, raw_text, is_benchmark, coach_notes, scaling_notes,
               workout_movements ( prescribed_distance_m, prescribed_calories, movements ( canonical_name, equipment, skill_category ) )
             )
           )
@@ -212,6 +213,7 @@ export default async function DashboardPage() {
                 direct link) rather than deleted, since he hasn't decided that part yet. */}
             {isAdmin && <Link href="/coach" className="hw-link-back">Coach Deck</Link>}
             {isAdmin && <Link href="/admin" className="hw-link-back">Admin</Link>}
+            <Link href="/prs" className="hw-link-back">PRs</Link>
             <Link href="/settings" className="hw-link-back">Setup</Link>
             <LogoutButton />
           </div>
@@ -351,6 +353,15 @@ export default async function DashboardPage() {
                       </div>
                     ) : (
                       <p className="hw-muted" style={{ marginTop: 10 }}>Not generated yet.</p>
+                    )}
+
+                    {slot.workouts && (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                        <ScoreForm workoutId={slot.workouts.id} calendarSlotId={slot.id} movements={allMovementRows ?? []} />
+                        <Link href={`/leaderboard/${slot.workouts.id}`} className="hw-link-back" style={{ marginTop: 10 }}>
+                          Leaderboard →
+                        </Link>
+                      </div>
                     )}
 
                     {slot.workouts && !hasRecordedEquipment && (
