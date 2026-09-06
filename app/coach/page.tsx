@@ -103,7 +103,7 @@ function CoachDeck() {
       }
 
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-      if (profile?.role !== 'coach' && profile?.role !== 'admin') {
+      if (profile?.role !== 'admin') {
         setLoadState('forbidden');
         return;
       }
@@ -141,7 +141,7 @@ function CoachDeck() {
       <main className="hw-shell">
         <div className="hw-wrap">
           <Link href="/dashboard" className="hw-link-back">← Back</Link>
-          <p style={{ marginTop: 16 }}>Coach Deck is for coaches only.</p>
+          <p style={{ marginTop: 16 }}>Coach Deck is for admins only.</p>
         </div>
       </main>
     );
@@ -163,11 +163,21 @@ function CoachDeck() {
   return (
     <main className="hw-shell">
       <div className="hw-wrap">
-        <div className="hw-eyebrow-row">
-          <span className="hw-eyebrow">Coach Deck</span>
-          <Link href="/dashboard" className="hw-link-back">Back</Link>
+        {/* Logo links back to /dashboard, same as tapping a site's logo goes
+            home on any normal site -- this page had no way back to the
+            athlete view at all before (John's report, 2026-09-05) other
+            than a small text link easy to miss; the logo is the more
+            familiar affordance, kept alongside the text link for clarity. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Link href="/dashboard" style={{ flex: 'none', lineHeight: 0 }}>
+            <img src="/logo-dot.png" alt="HalcyonWod" style={{ width: 44, height: 44, objectFit: 'contain' }} />
+          </Link>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span className="hw-eyebrow">Coach Deck</span>
+          </div>
+          <Link href="/dashboard" className="hw-link-back">Today&apos;s WOD</Link>
         </div>
-        <div className="hw-h1" style={{ fontSize: 26, color: 'var(--hw-ink)', textShadow: 'none' }}>
+        <div className="hw-h1" style={{ fontSize: 26, color: 'var(--hw-ink)', textShadow: 'none', marginTop: 12 }}>
           Sunday Review
         </div>
         <p className="hw-lede">
@@ -338,4 +348,3 @@ function DayCard({ label, slot }: { label: string; slot: Slot }) {
     </div>
   );
 }
-
