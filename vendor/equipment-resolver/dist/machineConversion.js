@@ -1,13 +1,28 @@
-// Official CrossFit CAP Affiliate Programming "Machine Conversions" chart
-// (assets.crossfit.com/affiliates/CAP_CardioConversionCharts_v.1.pdf,
-// "METERS" page, 2022). Six reference rows keyed by Run distance, each
-// carrying a female and male figure per machine -- NOT a clean fixed
-// multiplier (e.g. Assault/Row ratio is 2.1875 at some rows, 2.5 at others),
-// so this interpolates between the chart's own points rather than deriving
-// one ratio and applying it everywhere. Row and Ski are one column in the
-// source chart (treated as equivalent); Assault and Echo Bike are one
-// column too (also treated as equivalent) -- that's the chart's own
-// modeling choice, not a simplification made here.
+// Official CrossFit CAP Affiliate Programming "Machine Conversions --
+// Meters" chart, lifted directly from John's own compiled reference
+// (CrossFit_Exercises_By_Modality.md, "CARDIO CONVERSION REFERENCE"
+// section, sourced from CrossFit Affiliate Programming 2022) -- six
+// reference rows keyed by Run distance, replacing an earlier four-row
+// version of this table that had been approximated rather than transcribed
+// (2026-09-06). Every value below is printed in that source, NOT derived --
+// interpolate() still does the math for a distance that falls BETWEEN two
+// of these rows, but the rows themselves are the chart's own numbers, not
+// an estimate.
+//
+// Row and Ski are one column in the source chart (treated as equivalent).
+// Assault and Echo Bike are two separate columns in the source with
+// genuinely different figures -- NOT equivalent -- but this app's own
+// equipment picker (app/settings) only offers one combined "Bike
+// (Echo/Assault-style)" tag, so there's no way to know which specific
+// machine an athlete has. This bucket uses the source's Echo Bike column
+// specifically (John's call, 2026-09-06), with each row's pair sorted so
+// the larger figure is always male -- the source document's own "Echo
+// ♀/♂" column has inconsistent column order (row-to-row it sometimes
+// prints the larger figure first, sometimes second, unlike every other
+// machine's column, which is consistently male-larger -- almost certainly
+// a transcription error upstream of this codebase), so this takes the
+// two printed figures at face value and assigns the larger one to male
+// rather than trusting which position each was printed in.
 //
 // Presentation: CrossFit's own convention is to print both loads together
 // ("95/65 lb"), not to ask the athlete their sex and show one number --
@@ -17,10 +32,12 @@
 // in this codebase and this module doesn't need one.
 // The chart's six reference points, ascending by run distance.
 const CHART = [
-    { run: 400, row_ski: { f: 400, m: 500 }, c2_bike: { f: 800, m: 1000 }, assault_echo_bike: { f: 875, m: 1250 } },
+    { run: 200, row_ski: { f: 200, m: 250 }, c2_bike: { f: 400, m: 500 }, assault_echo_bike: { f: 500, m: 700 } },
+    { run: 400, row_ski: { f: 400, m: 500 }, c2_bike: { f: 800, m: 1000 }, assault_echo_bike: { f: 900, m: 1250 } },
     { run: 800, row_ski: { f: 800, m: 1000 }, c2_bike: { f: 1600, m: 2000 }, assault_echo_bike: { f: 1750, m: 2500 } },
-    { run: 1600, row_ski: { f: 1600, m: 2000 }, c2_bike: { f: 3200, m: 4000 }, assault_echo_bike: { f: 3150, m: 4500 } },
-    { run: 5000, row_ski: { f: 4000, m: 5000 }, c2_bike: { f: 8000, m: 10000 }, assault_echo_bike: { f: 8750, m: 12500 } },
+    { run: 1600, row_ski: { f: 1600, m: 2000 }, c2_bike: { f: 3200, m: 4000 }, assault_echo_bike: { f: 3500, m: 5000 } },
+    { run: 5000, row_ski: { f: 4000, m: 5000 }, c2_bike: { f: 8000, m: 10000 }, assault_echo_bike: { f: 11200, m: 16000 } },
+    { run: 10000, row_ski: { f: 8000, m: 10000 }, c2_bike: { f: 16000, m: 20000 }, assault_echo_bike: { f: 21000, m: 31000 } },
 ];
 function valueFor(row, machine) {
     return machine === 'run' ? row.run : row[machine];
@@ -118,4 +135,3 @@ export const CAP_MACHINE_LABEL = {
     c2_bike: 'C2 Bike',
     assault_echo_bike: 'Assault/Echo Bike',
 };
-
