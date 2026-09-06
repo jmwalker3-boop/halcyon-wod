@@ -74,7 +74,15 @@ export interface Database {
         Relationships: [];
       };
       workouts: {
-        Row: { id: string; title: string | null; day_type: DayType | null; raw_text: string | null; is_benchmark: boolean };
+        Row: {
+          id: string;
+          title: string | null;
+          day_type: DayType | null;
+          raw_text: string | null;
+          is_benchmark: boolean;
+          coach_notes: string | null;
+          scaling_notes: string | null;
+        };
         Insert: Partial<Database['public']['Tables']['workouts']['Row']> & { id?: string };
         Update: Partial<Database['public']['Tables']['workouts']['Row']>;
         Relationships: [];
