@@ -32,13 +32,17 @@ export interface OwnedLoad {
  *  skill families -- see the 20260904120000 migration); leave it undefined for
  *  everything else and no skill-level scaling is attempted.
  *
- *  prescribedDistanceM mirrors prescribedLoad's role but for monostructural/
- *  cardio pieces (Row, Ski Erg, Bike Erg, Bike (Echo/Assault), Run) --
- *  matches workout_movements.prescribed_distance_m (added 2026-09-06).
- *  Leave undefined for anything that isn't a distance-based cardio piece;
- *  without it, a missing machine still comes back as plain
- *  `needs_substitution` with no machineScaleOptions, same as before this
- *  field existed. */
+ *  prescribedDistanceM/prescribedCalories mirror prescribedLoad's role but
+ *  for monostructural/cardio pieces (Row, Ski Erg, Bike Erg, Bike
+ *  (Echo/Assault), Run) -- matching workout_movements.prescribed_distance_m
+ *  (added 2026-09-06) and .prescribed_calories (added 2026-09-06) respectively.
+ *  A coach writes a given piece as either a distance ("500m Ski") or a
+ *  calorie count ("32 Cal Echo Bike"), never both -- leave whichever
+ *  doesn't apply undefined. If somehow both are set, distance wins (see
+ *  resolveMovementForAthlete). Leave both undefined for anything that
+ *  isn't a monostructural cardio piece at all; without either, a missing
+ *  machine still comes back as plain `needs_substitution` with no
+ *  machineScaleOptions, same as before either field existed. */
 export interface MovementToResolve {
     name: string;
     equipment: string[];
@@ -48,21 +52,26 @@ export interface MovementToResolve {
         unit: WeightUnit;
     };
     prescribedDistanceM?: number;
+    prescribedCalories?: number;
 }
 /** One machine-swap option computed from the official CrossFit CAP
- *  conversion chart (see machineConversion.ts). Row/Ski/Bike/Echo options
- *  carry separate female and male figures shown together, CrossFit's own
- *  convention for presenting sex-split numbers (same as a barbell load's
- *  "95/65"), rather than asking the athlete's sex and picking one. Run is
- *  the one exception: running distances are never sex-split in this
- *  methodology (everyone runs the same distance), so a Run option is
- *  `unisex: true` with a single `distance`, not a female/male pair. */
+ *  conversion chart (see machineConversion.ts) -- from either the meters
+ *  chart or the calories chart, per `unit`, matching whichever the source
+ *  movement was prescribed in. Row/Ski/Bike/Echo options carry separate
+ *  female and male figures shown together, CrossFit's own convention for
+ *  presenting sex-split numbers (same as a barbell load's "95/65"), rather
+ *  than asking the athlete's sex and picking one. Run is the one
+ *  exception: running distances are never sex-split in this methodology
+ *  (everyone runs the same distance), so a Run option is `unisex: true`
+ *  with a single `value` -- always in meters (`unit: 'm'`) even when the
+ *  source movement was calorie-based, since you don't "run calories". */
 export type MachineScaleOption = {
     /** The owned machine's canonical movement name, e.g. "Row", "Run". */
     machine: string;
+    unit: 'm' | 'cal';
 } & ({
     unisex: true;
-    distance: number;
+    value: number;
 } | {
     unisex: false;
     female: number;
@@ -127,9 +136,10 @@ export interface ResolvedMovement {
     } | null;
     /** Populated only when status is 'needs_substitution', the missing equipment is a
      *  monostructural machine (Row/Ski/Bike Erg/Assault-Echo Bike), and the workout recorded
-     *  a prescribedDistanceM -- one entry per cardio machine/Run the athlete actually owns,
-     *  converted via the official CAP chart. Null whenever a real automatic answer isn't
-     *  possible (no distance on record, or the gap isn't a machine at all) -- this
+     *  a prescribedDistanceM or prescribedCalories -- one entry per cardio machine/Run the
+     *  athlete actually owns, converted via the official CAP chart (meters or calories,
+     *  matching whichever was recorded). Null whenever a real automatic answer isn't
+     *  possible (neither value on record, or the gap isn't a machine at all) -- this
      *  deliberately never guesses which owned machine to pick when more than one applies,
      *  same "let a human make the call" philosophy as needs_substitution itself. */
     machineScaleOptions: MachineScaleOption[] | null;
