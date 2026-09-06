@@ -287,9 +287,11 @@ button {
 }
 
 .hw-sticky-bar {
-  position: sticky;
+  position: fixed;
+  left: 0;
+  right: 0;
   bottom: 0;
-  margin: 20px -20px -40px;
+  z-index: 20;
   border-top: 4px solid var(--hw-ink);
   background: var(--hw-mustard);
   padding: 14px 20px 30px;
