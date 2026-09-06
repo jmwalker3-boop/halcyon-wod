@@ -363,21 +363,21 @@ export default async function DashboardPage() {
                                   recorded distance (CAP chart conversion, added 2026-09-06) --
                                   everything else still falls back to the plain gap message
                                   above with nothing further to suggest.
-                                  Male-first ("M/F"), matching this app's own established
-                                  convention for every other sex-split number on the page
-                                  (barbell loads read "135/95," male first regardless of
-                                  which number is larger) -- an earlier version of this line
-                                  read female-first, which read as backwards/wrong for Run
-                                  specifically (John's report, 2026-09-06): Run is the one
-                                  conversion where the male figure comes out SMALLER than the
-                                  female one (male Row/Ski distances run ~1.25x the female
-                                  figure per the CAP chart, so converting back to Run flips
-                                  which one's bigger) -- the math was always correct, only the
-                                  display order didn't match the rest of the app. */}
+                                  Row/Ski/Bike/Echo options are fixed male-first ("M/F"),
+                                  matching every other sex-split number on this page (barbell
+                                  loads read "135/95," male first regardless of which number is
+                                  larger). Run is never sex-split at all (John, 2026-09-06:
+                                  "Run distances never need to change between M/F ... everyone
+                                  runs the same distances") -- it renders as a single unisex
+                                  number, computed off the male axis, not a female/male pair. */}
                               {g.machineScaleOptions && (
                                 <div className="hw-muted" style={{ marginTop: 4 }}>
-                                  Try (M/F): {g.machineScaleOptions
-                                    .map((o) => `${o.male}/${o.female}m ${o.machine}`)
+                                  Try: {g.machineScaleOptions
+                                    .map((o) =>
+                                      o.unisex
+                                        ? `${o.distance}m ${o.machine}`
+                                        : `${o.male}/${o.female}m ${o.machine} (M/F)`
+                                    )
                                     .join(' · ')}
                                 </div>
                               )}
