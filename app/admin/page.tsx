@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import LogoutButton from '@/components/LogoutButton';
 import { createClient } from '@/lib/supabase/client';
 
 // Minimal admin tool (John's own scoping, 2026-09-06): "let's build that
@@ -134,6 +135,7 @@ export default function AdminPage() {
             <span className="hw-eyebrow">Admin</span>
           </div>
           <Link href="/dashboard" className="hw-link-back">Today&apos;s WOD</Link>
+          <LogoutButton />
         </div>
         <div className="hw-h1" style={{ fontSize: 26, color: 'var(--hw-ink)', textShadow: 'none', marginTop: 12 }}>
           Enroll an Athlete
@@ -212,4 +214,3 @@ export default function AdminPage() {
     </main>
   );
 }
-
