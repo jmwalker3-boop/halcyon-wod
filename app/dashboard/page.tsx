@@ -362,11 +362,22 @@ export default async function DashboardPage() {
                               {/* Only present for a missing monostructural machine with a
                                   recorded distance (CAP chart conversion, added 2026-09-06) --
                                   everything else still falls back to the plain gap message
-                                  above with nothing further to suggest. */}
+                                  above with nothing further to suggest.
+                                  Male-first ("M/F"), matching this app's own established
+                                  convention for every other sex-split number on the page
+                                  (barbell loads read "135/95," male first regardless of
+                                  which number is larger) -- an earlier version of this line
+                                  read female-first, which read as backwards/wrong for Run
+                                  specifically (John's report, 2026-09-06): Run is the one
+                                  conversion where the male figure comes out SMALLER than the
+                                  female one (male Row/Ski distances run ~1.25x the female
+                                  figure per the CAP chart, so converting back to Run flips
+                                  which one's bigger) -- the math was always correct, only the
+                                  display order didn't match the rest of the app. */}
                               {g.machineScaleOptions && (
                                 <div className="hw-muted" style={{ marginTop: 4 }}>
-                                  Try (F/M): {g.machineScaleOptions
-                                    .map((o) => `${o.female}/${o.male}m ${o.machine}`)
+                                  Try (M/F): {g.machineScaleOptions
+                                    .map((o) => `${o.male}/${o.female}m ${o.machine}`)
                                     .join(' · ')}
                                 </div>
                               )}
