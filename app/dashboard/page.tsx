@@ -71,7 +71,7 @@ export default async function DashboardPage() {
             date, day_type, target_modalities,
             workouts (
               title, raw_text, is_benchmark,
-              workout_movements ( movements ( canonical_name, equipment, skill_category ) )
+              workout_movements ( prescribed_distance_m, movements ( canonical_name, equipment, skill_category ) )
             )
           )
         )
@@ -147,12 +147,16 @@ export default async function DashboardPage() {
 
   function resolveSlotEquipment(slot: any): ResolvedMovement[] {
     const toResolve: MovementToResolve[] = (slot.workouts?.workout_movements ?? [])
-      .map((wm: any) => wm.movements)
-      .filter(Boolean)
-      .map((m: any) => ({
-        name: m.canonical_name,
-        equipment: m.equipment ?? [],
-        skillCategory: m.skill_category ?? undefined,
+      .filter((wm: any) => wm.movements)
+      .map((wm: any) => ({
+        name: wm.movements.canonical_name,
+        equipment: wm.movements.equipment ?? [],
+        skillCategory: wm.movements.skill_category ?? undefined,
+        // Only set on cardio/monostructural pieces (workout_movements.prescribed_distance_m,
+        // added 2026-09-06) -- lets the resolver offer real CAP-chart-converted
+        // machine options instead of a bare "you don't have: X" when this is
+        // recorded. Undefined for everything else, same as before this existed.
+        prescribedDistanceM: wm.prescribed_distance_m ?? undefined,
       }));
     return resolveWorkoutForAthlete(toResolve, owned, rx);
   }
@@ -345,10 +349,23 @@ export default async function DashboardPage() {
                     {hasRecordedEquipment && gaps.length > 0 && (
                       <div className="hw-card" style={{ marginTop: 10 }}>
                         <span className="hw-label" style={{ color: 'var(--hw-pink-deep)' }}>Needs a manual scale</span>
-                        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
                           {gaps.map((g) => (
                             <div key={g.prescribedName} style={{ fontSize: 13 }}>
-                              {g.prescribedName} — you don&apos;t have: {g.missingEquipment.join(', ')}
+                              <div>
+                                {g.prescribedName} — you don&apos;t have: {g.missingEquipment.join(', ')}
+                              </div>
+                              {/* Only present for a missing monostructural machine with a
+                                  recorded distance (CAP chart conversion, added 2026-09-06) --
+                                  everything else still falls back to the plain gap message
+                                  above with nothing further to suggest. */}
+                              {g.machineScaleOptions && (
+                                <div className="hw-muted" style={{ marginTop: 4 }}>
+                                  Try (F/M): {g.machineScaleOptions
+                                    .map((o) => `${o.female}/${o.male}m ${o.machine}`)
+                                    .join(' · ')}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
