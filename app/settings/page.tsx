@@ -230,7 +230,7 @@ export default function SettingsPage() {
 
   return (
     <main className="hw-shell">
-      <form onSubmit={handleSave} className="hw-wrap" style={{ paddingBottom: 0 }}>
+      <form onSubmit={handleSave} className="hw-wrap">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
           <LogoutButton />
@@ -341,7 +341,7 @@ export default function SettingsPage() {
       {/* Separate form/card, deliberately outside the equipment/skill form above --
           this saves to auth, not to profile_equipment or profile_skill_levels, so it
           has its own submit action and its own save state. */}
-      <div className="hw-wrap" style={{ paddingTop: 0 }}>
+      <div className="hw-wrap" style={{ paddingTop: 0, paddingBottom: 100 }}>
         <form onSubmit={handleSetPassword} className="hw-card" style={{ marginTop: 4, marginBottom: 24 }}>
           <span className="hw-eyebrow">Password sign-in</span>
           <p className="hw-muted" style={{ fontSize: 13, marginTop: 6 }}>
