@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import LogoutButton from '@/components/LogoutButton';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
@@ -185,6 +186,7 @@ function CoachDeck() {
             <span className="hw-eyebrow">Coach Deck</span>
           </div>
           <Link href="/dashboard" className="hw-link-back">Today&apos;s WOD</Link>
+          <LogoutButton />
         </div>
         <div className="hw-h1" style={{ fontSize: 26, color: 'var(--hw-ink)', textShadow: 'none', marginTop: 12 }}>
           Sunday Review
