@@ -42,38 +42,47 @@ const CHART = [
 function valueFor(row, machine) {
     return machine === 'run' ? row.run : row[machine];
 }
-// Linear interpolation (extrapolating past the last point on the same
-// slope) between whichever two chart rows bracket `fromDistance` on the
-// `fromMachine` axis, then reading the paired value on `toMachine` at that
-// same interpolation fraction. Both machines are converted through their
-// own run-equivalent position in the table, which is how the source chart
-// itself is structured (every column is indexed by the same six run
-// distances) -- this is not an assumption layered on top of the chart, it's
-// how the chart is already organized.
-function interpolate(fromDistance, fromMachine, toMachine, sex) {
-    const fromAt = (row) => {
+// A prescribed distance like "500m Ski" is ONE physical number, not two --
+// there's no such thing as "500m on the female axis" versus "500m on the
+// male axis" independently. This app's own convention (matching the
+// male-first "135/95" load convention used everywhere else) is that a
+// single stored number is the MALE reference. So the interpolation
+// fraction is computed exactly once, off the `from` machine's MALE axis,
+// and that one fraction is then read against BOTH the `to` machine's
+// female and male columns.
+//
+// An earlier version of this function computed the fraction TWICE --
+// once against the `from` machine's female axis, once against its male
+// axis -- as if a single input distance meant something different
+// depending which column you interpolated it against. That produced
+// nonsense whenever `from` and `to` shared the same chart column (Row and
+// Ski Erg are literally the same 'row_ski' bucket): converting "500m Ski"
+// to "Row" came back "500/500" instead of "500/400" (John's report,
+// 2026-09-06), because interpreting the same 500 independently against
+// row_ski's own female axis (400-800 range) and male axis (exactly at the
+// 500 reference point) gave two different, uncorrelated fractions instead
+// of one coherent answer. Anchoring to the male axis alone and reusing
+// that fraction for both output columns fixes this for every pair of
+// machines, not just same-bucket ones -- there is no legitimate case where
+// a single input number should be read as two different positions in the
+// chart.
+function fractionAt(fromDistance, fromMachine) {
+    const maleAt = (row) => {
         const v = valueFor(row, fromMachine);
-        return typeof v === 'number' ? v : v[sex];
+        return typeof v === 'number' ? v : v.m;
     };
-    const toAt = (row) => {
-        const v = valueFor(row, toMachine);
-        return typeof v === 'number' ? v : v[sex];
-    };
-    // Bracket-finding has three cases, and each sex's axis needs this done
-    // independently (this was the bug an early version had: male reference
-    // distances start higher than female's on every machine, e.g. row_ski.m
-    // starts at 500 vs. row_ski.f's 400, so a common prescription like
-    // "400m row" falls BELOW the male axis's first point even though it's
-    // exactly on the female axis's first point -- that needs the same
-    // extrapolate-downward handling as going below both axes, not a
-    // fallback that silently spans the entire table).
+    // Bracket-finding has three cases: below the first point, above the
+    // last, or between two adjacent points -- extrapolating on the same
+    // slope in the below/above cases rather than clamping, so a distance
+    // outside the chart's own range (e.g. a very short or very long
+    // machine piece) still gets a real answer instead of a flat one.
     let lo;
     let hi;
-    if (fromDistance <= fromAt(CHART[0])) {
+    if (fromDistance <= maleAt(CHART[0])) {
         lo = 0;
         hi = 1;
     }
-    else if (fromDistance >= fromAt(CHART[CHART.length - 1])) {
+    else if (fromDistance >= maleAt(CHART[CHART.length - 1])) {
         lo = CHART.length - 2;
         hi = CHART.length - 1;
     }
@@ -81,19 +90,36 @@ function interpolate(fromDistance, fromMachine, toMachine, sex) {
         lo = 0;
         hi = 1;
         for (let i = 0; i < CHART.length - 1; i++) {
-            if (fromDistance >= fromAt(CHART[i]) && fromDistance <= fromAt(CHART[i + 1])) {
+            if (fromDistance >= maleAt(CHART[i]) && fromDistance <= maleAt(CHART[i + 1])) {
                 lo = i;
                 hi = i + 1;
                 break;
             }
         }
     }
-    const fromLo = fromAt(CHART[lo]);
-    const fromHi = fromAt(CHART[hi]);
-    const toLo = toAt(CHART[lo]);
-    const toHi = toAt(CHART[hi]);
-    const fraction = fromHi === fromLo ? 0 : (fromDistance - fromLo) / (fromHi - fromLo);
-    return toLo + fraction * (toHi - toLo);
+    const maleLo = maleAt(CHART[lo]);
+    const maleHi = maleAt(CHART[hi]);
+    const fraction = maleHi === maleLo ? 0 : (fromDistance - maleLo) / (maleHi - maleLo);
+    return { lo, hi, fraction };
+}
+function interpolate(fromDistance, fromMachine, toMachine) {
+    const { lo, hi, fraction } = fractionAt(fromDistance, fromMachine);
+    const femaleAt = (row) => {
+        const v = valueFor(row, toMachine);
+        return typeof v === 'number' ? v : v.f;
+    };
+    const maleAt = (row) => {
+        const v = valueFor(row, toMachine);
+        return typeof v === 'number' ? v : v.m;
+    };
+    const femaleLo = femaleAt(CHART[lo]);
+    const femaleHi = femaleAt(CHART[hi]);
+    const maleLo = maleAt(CHART[lo]);
+    const maleHi = maleAt(CHART[hi]);
+    return {
+        female: femaleLo + fraction * (femaleHi - femaleLo),
+        male: maleLo + fraction * (maleHi - maleLo),
+    };
 }
 // Rounds to the nearest 5m under 1000m, nearest 10m at or above -- matches
 // how the chart's own numbers are rounded (400, 800, 1600 vs. 875, 1750),
@@ -107,14 +133,15 @@ function roundDistance(m) {
  * another, for both sexes, per the official CAP chart. Returns whole-meter
  * values pre-rounded for display (e.g. "500/400m Row" style pairs) -- pass
  * the result straight into a template, don't re-round it.
+ *
+ * Deliberately no from===to shortcut: Row and Ski Erg are the same
+ * 'row_ski' chart column, so "convert 500m Ski to Row" IS a same-bucket
+ * call, and it still needs the real female/male split (500/400), not the
+ * input number echoed back unchanged for both sexes.
  */
 export function convertDistance(distanceM, from, to) {
-    if (from === to)
-        return { female: roundDistance(distanceM), male: roundDistance(distanceM) };
-    return {
-        female: roundDistance(interpolate(distanceM, from, to, 'f')),
-        male: roundDistance(interpolate(distanceM, from, to, 'm')),
-    };
+    const { female, male } = interpolate(distanceM, from, to);
+    return { female: roundDistance(female), male: roundDistance(male) };
 }
 /**
  * Given a distance prescribed on a machine the athlete doesn't have, and
