@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import LogoutButton from '@/components/LogoutButton';
 import {
   normalizeEquipmentTag,
   resolveWorkoutForAthlete,
@@ -212,6 +213,7 @@ export default async function DashboardPage() {
             {isAdmin && <Link href="/coach" className="hw-link-back">Coach Deck</Link>}
             {isAdmin && <Link href="/admin" className="hw-link-back">Admin</Link>}
             <Link href="/settings" className="hw-link-back">Setup</Link>
+            <LogoutButton />
           </div>
         </div>
 
