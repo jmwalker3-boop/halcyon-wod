@@ -70,7 +70,7 @@ export default async function DashboardPage() {
           calendar_slots (
             date, day_type, target_modalities,
             workouts (
-              title, raw_text, is_benchmark,
+              title, raw_text, is_benchmark, coach_notes, scaling_notes,
               workout_movements ( prescribed_distance_m, movements ( canonical_name, equipment, skill_category ) )
             )
           )
@@ -317,6 +317,32 @@ export default async function DashboardPage() {
                           >
                             {slot.workouts.raw_text ?? '(no content yet)'}
                           </pre>
+                          {/* Athlete-facing Notes section (John's request, 2026-09-06) --
+                              every WOD gets this when the coach has written either field in
+                              Coach Deck; hidden entirely when both are empty rather than
+                              showing an empty "Notes" header. Deliberately separate from
+                              calendar_slots.override_reason, which is an internal
+                              doctrine-exception reason, not athlete-facing. */}
+                          {(slot.workouts.coach_notes || slot.workouts.scaling_notes) && (
+                            <div
+                              style={{
+                                marginTop: 14,
+                                paddingTop: 12,
+                                borderTop: '2px solid var(--hw-ink)',
+                              }}
+                            >
+                              <span className="hw-label" style={{ color: 'var(--hw-violet)' }}>Notes</span>
+                              {slot.workouts.coach_notes && (
+                                <p style={{ fontSize: 13, margin: '8px 0 0' }}>{slot.workouts.coach_notes}</p>
+                              )}
+                              {slot.workouts.scaling_notes && (
+                                <p style={{ fontSize: 13, margin: '8px 0 0' }}>
+                                  <strong>Scaling: </strong>
+                                  {slot.workouts.scaling_notes}
+                                </p>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ) : (
