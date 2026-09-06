@@ -30,7 +30,15 @@ export interface OwnedLoad {
  *  any one athlete. `equipment` matches movements.equipment exactly. `skillCategory`
  *  is set only for movements that carry one in the movements table (gymnastics
  *  skill families -- see the 20260904120000 migration); leave it undefined for
- *  everything else and no skill-level scaling is attempted. */
+ *  everything else and no skill-level scaling is attempted.
+ *
+ *  prescribedDistanceM mirrors prescribedLoad's role but for monostructural/
+ *  cardio pieces (Row, Ski Erg, Bike Erg, Bike (Echo/Assault), Run) --
+ *  matches workout_movements.prescribed_distance_m (added 2026-09-06).
+ *  Leave undefined for anything that isn't a distance-based cardio piece;
+ *  without it, a missing machine still comes back as plain
+ *  `needs_substitution` with no machineScaleOptions, same as before this
+ *  field existed. */
 export interface MovementToResolve {
     name: string;
     equipment: string[];
@@ -39,6 +47,18 @@ export interface MovementToResolve {
         value: number;
         unit: WeightUnit;
     };
+    prescribedDistanceM?: number;
+}
+/** One machine-swap option computed from the official CrossFit CAP
+ *  conversion chart (see machineConversion.ts) -- female and male figures
+ *  shown together, CrossFit's own convention for presenting sex-split
+ *  numbers (same as a barbell load's "95/65"), rather than asking the
+ *  athlete's sex and picking one. */
+export interface MachineScaleOption {
+    /** The owned machine's canonical movement name, e.g. "Row", "Run". */
+    machine: string;
+    female: number;
+    male: number;
 }
 /** Everything the resolver needs to attempt automatic scaling, beyond raw
  *  equipment ownership -- all optional and all default to "do nothing", so
@@ -97,4 +117,12 @@ export interface ResolvedMovement {
         value: number;
         unit: WeightUnit;
     } | null;
+    /** Populated only when status is 'needs_substitution', the missing equipment is a
+     *  monostructural machine (Row/Ski/Bike Erg/Assault-Echo Bike), and the workout recorded
+     *  a prescribedDistanceM -- one entry per cardio machine/Run the athlete actually owns,
+     *  converted via the official CAP chart. Null whenever a real automatic answer isn't
+     *  possible (no distance on record, or the gap isn't a machine at all) -- this
+     *  deliberately never guesses which owned machine to pick when more than one applies,
+     *  same "let a human make the call" philosophy as needs_substitution itself. */
+    machineScaleOptions: MachineScaleOption[] | null;
 }
