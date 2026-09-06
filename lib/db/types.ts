@@ -147,7 +147,16 @@ export interface Database {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      // SECURITY DEFINER, admin-gated internally (see the migration) -- looks
+      // up an auth.users email and upserts a program_enrollments row for the
+      // one program that exists (2026-09-06, "everyone will be on the
+      // program initially," no picker needed until a second program does).
+      admin_enroll_by_email: {
+        Args: { target_email: string };
+        Returns: undefined;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
