@@ -50,16 +50,24 @@ export interface MovementToResolve {
     prescribedDistanceM?: number;
 }
 /** One machine-swap option computed from the official CrossFit CAP
- *  conversion chart (see machineConversion.ts) -- female and male figures
- *  shown together, CrossFit's own convention for presenting sex-split
- *  numbers (same as a barbell load's "95/65"), rather than asking the
- *  athlete's sex and picking one. */
-export interface MachineScaleOption {
+ *  conversion chart (see machineConversion.ts). Row/Ski/Bike/Echo options
+ *  carry separate female and male figures shown together, CrossFit's own
+ *  convention for presenting sex-split numbers (same as a barbell load's
+ *  "95/65"), rather than asking the athlete's sex and picking one. Run is
+ *  the one exception: running distances are never sex-split in this
+ *  methodology (everyone runs the same distance), so a Run option is
+ *  `unisex: true` with a single `distance`, not a female/male pair. */
+export type MachineScaleOption = {
     /** The owned machine's canonical movement name, e.g. "Row", "Run". */
     machine: string;
+} & ({
+    unisex: true;
+    distance: number;
+} | {
+    unisex: false;
     female: number;
     male: number;
-}
+});
 /** Everything the resolver needs to attempt automatic scaling, beyond raw
  *  equipment ownership -- all optional and all default to "do nothing", so
  *  existing 2-argument call sites keep working unchanged.
