@@ -41,7 +41,14 @@ type Slot = {
   date: string;
   day_type: string;
   override_reason: string | null;
-  workouts: { id: string; title: string | null; raw_text: string | null; is_benchmark: boolean } | null;
+  workouts: {
+    id: string;
+    title: string | null;
+    raw_text: string | null;
+    is_benchmark: boolean;
+    coach_notes: string | null;
+    scaling_notes: string | null;
+  } | null;
 };
 
 function mondayOnOrAfter(d: Date): Date {
@@ -110,7 +117,9 @@ function CoachDeck() {
 
       const { data, error: fetchError } = await supabase
         .from('calendar_slots')
-        .select('id, date, day_type, override_reason, workouts ( id, title, raw_text, is_benchmark )')
+        .select(
+          'id, date, day_type, override_reason, workouts ( id, title, raw_text, is_benchmark, coach_notes, scaling_notes )',
+        )
         .gte('date', weekStart)
         .lte('date', weekEnd)
         .order('date');
@@ -220,6 +229,8 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 function DayCard({ label, slot }: { label: string; slot: Slot }) {
   const [title, setTitle] = useState(slot.workouts?.title ?? '');
   const [rawText, setRawText] = useState(slot.workouts?.raw_text ?? '');
+  const [coachNotes, setCoachNotes] = useState(slot.workouts?.coach_notes ?? '');
+  const [scalingNotes, setScalingNotes] = useState(slot.workouts?.scaling_notes ?? '');
   const [note, setNote] = useState(slot.override_reason ?? '');
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -232,7 +243,12 @@ function DayCard({ label, slot }: { label: string; slot: Slot }) {
     if (slot.workouts) {
       const { error: workoutError } = await supabase
         .from('workouts')
-        .update({ title: title || null, raw_text: rawText || null })
+        .update({
+          title: title || null,
+          raw_text: rawText || null,
+          coach_notes: coachNotes || null,
+          scaling_notes: scalingNotes || null,
+        })
         .eq('id', slot.workouts.id);
       if (workoutError) {
         setError(workoutError.message);
@@ -305,6 +321,45 @@ function DayCard({ label, slot }: { label: string; slot: Slot }) {
                 borderRadius: 8,
                 background: 'var(--hw-paper)',
                 color: 'var(--hw-ink)',
+                resize: 'vertical',
+              }}
+            />
+
+            {/* Athlete-facing -- shown in the dashboard's "Notes" section
+                (John's request, 2026-09-06), distinct from the
+                override_reason note below (that one is the internal
+                doctrine-exception reason, never shown to athletes). */}
+            <textarea
+              value={coachNotes}
+              onChange={(e) => setCoachNotes(e.target.value)}
+              rows={2}
+              placeholder="Notes for athletes (shown on their dashboard)"
+              style={{
+                width: '100%',
+                font: '400 13px/1.5 "Space Grotesk", sans-serif',
+                padding: '10px 12px',
+                border: '2px solid var(--hw-ink)',
+                borderRadius: 8,
+                background: 'var(--hw-paper)',
+                color: 'var(--hw-ink)',
+                marginTop: 8,
+                resize: 'vertical',
+              }}
+            />
+            <textarea
+              value={scalingNotes}
+              onChange={(e) => setScalingNotes(e.target.value)}
+              rows={2}
+              placeholder='Scaling guidance for athletes (e.g. "no rower? sub 20 cal bike")'
+              style={{
+                width: '100%',
+                font: '400 13px/1.5 "Space Grotesk", sans-serif',
+                padding: '10px 12px',
+                border: '2px solid var(--hw-ink)',
+                borderRadius: 8,
+                background: 'var(--hw-paper)',
+                color: 'var(--hw-ink)',
+                marginTop: 8,
                 resize: 'vertical',
               }}
             />
