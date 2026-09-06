@@ -28,10 +28,15 @@ export default function LogoutButton({ className, style }: { className?: string;
       onClick={handleLogout}
       disabled={loading}
       className={className ?? 'hw-link-back'}
-      style={{ background: 'none', border: 'none', cursor: 'pointer', font: 'inherit', padding: 0, ...style }}
+      // Deliberately just `border: none, cursor: pointer` -- a <button> has none
+      // of an <a>'s default styling to strip, but overriding background/padding/font
+      // here (an earlier version did) fights the className, since inline styles
+      // always win over a CSS class. That silently broke the pill look every other
+      // header link uses (John's report, 2026-09-07: "Log out" rendered as bare
+      // text instead of matching Coach Deck/Admin/Setup).
+      style={{ border: 'none', cursor: 'pointer', ...style }}
     >
       {loading ? 'Signing out…' : 'Log out'}
     </button>
   );
 }
-
