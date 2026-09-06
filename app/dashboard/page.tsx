@@ -71,7 +71,7 @@ export default async function DashboardPage() {
             date, day_type, target_modalities,
             workouts (
               title, raw_text, is_benchmark, coach_notes, scaling_notes,
-              workout_movements ( prescribed_distance_m, movements ( canonical_name, equipment, skill_category ) )
+              workout_movements ( prescribed_distance_m, prescribed_calories, movements ( canonical_name, equipment, skill_category ) )
             )
           )
         )
@@ -152,11 +152,13 @@ export default async function DashboardPage() {
         name: wm.movements.canonical_name,
         equipment: wm.movements.equipment ?? [],
         skillCategory: wm.movements.skill_category ?? undefined,
-        // Only set on cardio/monostructural pieces (workout_movements.prescribed_distance_m,
-        // added 2026-09-06) -- lets the resolver offer real CAP-chart-converted
-        // machine options instead of a bare "you don't have: X" when this is
-        // recorded. Undefined for everything else, same as before this existed.
+        // Only set on cardio/monostructural pieces (workout_movements.prescribed_distance_m
+        // / .prescribed_calories, added 2026-09-06 and 2026-09-07) -- lets the resolver
+        // offer real CAP-chart-converted machine options instead of a bare "you don't
+        // have: X" when either is recorded. Undefined for everything else, same as
+        // before either field existed.
         prescribedDistanceM: wm.prescribed_distance_m ?? undefined,
+        prescribedCalories: wm.prescribed_calories ?? undefined,
       }));
     return resolveWorkoutForAthlete(toResolve, owned, rx);
   }
@@ -386,7 +388,8 @@ export default async function DashboardPage() {
                                 {g.prescribedName} — you don&apos;t have: {g.missingEquipment.join(', ')}
                               </div>
                               {/* Only present for a missing monostructural machine with a
-                                  recorded distance (CAP chart conversion, added 2026-09-06) --
+                                  recorded distance or calorie count (CAP chart conversion,
+                                  added 2026-09-06, extended to calories 2026-09-07) --
                                   everything else still falls back to the plain gap message
                                   above with nothing further to suggest.
                                   Row/Ski/Bike/Echo options are fixed male-first ("M/F"),
@@ -395,15 +398,20 @@ export default async function DashboardPage() {
                                   larger). Run is never sex-split at all (John, 2026-09-06:
                                   "Run distances never need to change between M/F ... everyone
                                   runs the same distances") -- it renders as a single unisex
-                                  number, computed off the male axis, not a female/male pair. */}
+                                  number, computed off the male axis, not a female/male pair,
+                                  and always in meters (unit: 'm') even when the source piece
+                                  was calorie-based, since you don't "run calories." Non-Run
+                                  options carry their own unit ('m' or 'cal') matching whatever
+                                  the source movement was prescribed in. */}
                               {g.machineScaleOptions && (
                                 <div className="hw-muted" style={{ marginTop: 4 }}>
                                   Try: {g.machineScaleOptions
-                                    .map((o) =>
-                                      o.unisex
-                                        ? `${o.distance}m ${o.machine}`
-                                        : `${o.male}/${o.female}m ${o.machine} (M/F)`
-                                    )
+                                    .map((o) => {
+                                      const suffix = o.unit === 'cal' ? ' Cal' : 'm';
+                                      return o.unisex
+                                        ? `${o.value}${suffix} ${o.machine}`
+                                        : `${o.male}/${o.female}${suffix} ${o.machine} (M/F)`;
+                                    })
                                     .join(' · ')}
                                 </div>
                               )}
