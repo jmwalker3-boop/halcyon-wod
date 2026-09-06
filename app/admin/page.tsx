@@ -109,21 +109,37 @@ export default function AdminPage() {
     e.preventDefault();
     setSettingPassword(true);
     setPwMessage(null);
-    const res = await fetch('/api/admin/set-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: pwEmail.trim(), password: pwPassword }),
-    });
-    const body = await res.json();
-    if (!res.ok) {
-      setPwMessage({ kind: 'error', text: body.error ?? 'Something went wrong.' });
+    // Wrapped in try/catch/finally deliberately -- an earlier version read
+    // res.json() unconditionally, which throws if the server ever returns
+    // something that isn't valid JSON (a 500 from an unhandled exception in
+    // the route renders as an HTML error page, not JSON). That left the
+    // button stuck on "Setting..." forever with no visible error (John's
+    // report, 2026-09-07) instead of surfacing whatever actually broke.
+    try {
+      const res = await fetch('/api/admin/set-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: pwEmail.trim(), password: pwPassword }),
+      });
+      let body: { error?: string } = {};
+      try {
+        body = await res.json();
+      } catch {
+        // Response wasn't JSON at all (e.g. a raw 500 HTML page) -- fall
+        // through to the generic error below rather than throwing here.
+      }
+      if (!res.ok) {
+        setPwMessage({ kind: 'error', text: body.error ?? `Request failed (${res.status}).` });
+        return;
+      }
+      setPwMessage({ kind: 'ok', text: `Password set for ${pwEmail.trim()}.` });
+      setPwEmail('');
+      setPwPassword('');
+    } catch (err) {
+      setPwMessage({ kind: 'error', text: err instanceof Error ? err.message : 'Network error.' });
+    } finally {
       setSettingPassword(false);
-      return;
     }
-    setPwMessage({ kind: 'ok', text: `Password set for ${pwEmail.trim()}.` });
-    setPwEmail('');
-    setPwPassword('');
-    setSettingPassword(false);
   }
 
   if (loadState === 'loading') {
