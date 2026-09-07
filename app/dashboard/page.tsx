@@ -215,7 +215,7 @@ export default async function DashboardPage() {
             {isAdmin && <Link href="/admin" className="hw-link-back">Admin</Link>}
             <Link href="/prs" className="hw-link-back">PRs</Link>
             <Link href="/billing" className="hw-link-back">Billing</Link>
-            <Link href="/settings" className="hw-link-back">Setup</Link>
+            <Link href="/account" className="hw-link-back">Account</Link>
             <LogoutButton />
           </div>
         </div>
@@ -370,7 +370,7 @@ export default async function DashboardPage() {
                         <p style={{ margin: 0, fontSize: 13 }}>
                           Add your equipment and skill level to see your actual Rx for this workout.
                         </p>
-                        <Link href="/settings" className="hw-btn hw-btn-mustard" style={{ marginTop: 12, fontSize: 14, padding: 12 }}>
+                        <Link href="/account" className="hw-btn hw-btn-mustard" style={{ marginTop: 12, fontSize: 14, padding: 12 }}>
                           Set up your gear →
                         </Link>
                       </div>
