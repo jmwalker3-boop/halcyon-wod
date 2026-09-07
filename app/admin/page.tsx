@@ -247,6 +247,7 @@ export default function AdminPage() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <span className="hw-eyebrow">Admin</span>
           </div>
+          <Link href="/coach" className="hw-link-back">Coach Deck</Link>
           <Link href="/dashboard" className="hw-link-back">Today&apos;s WOD</Link>
           <LogoutButton />
         </div>
