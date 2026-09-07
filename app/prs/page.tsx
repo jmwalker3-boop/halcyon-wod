@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import Avatar from '@/components/Avatar';
+import TabBar from '@/components/TabBar';
 
 // Searchable PR log (John's request, 2026-09-07: "auto detects a PR and
 // should be searchable"). personal_records already gets a new row from
@@ -70,7 +71,7 @@ export default function PrsPage() {
 
   return (
     <main className="hw-shell">
-      <div className="hw-wrap">
+      <div className="hw-wrap" style={{ paddingBottom: 100 }}>
         <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
         <div className="hw-h1" style={{ fontSize: 26 }}>PRs</div>
         <p className="hw-lede">Every current best, by movement.</p>
@@ -118,6 +119,7 @@ export default function PrsPage() {
           </div>
         ))}
       </div>
+      <TabBar />
     </main>
   );
 }
