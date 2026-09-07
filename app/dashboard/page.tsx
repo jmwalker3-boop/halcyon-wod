@@ -3,8 +3,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import LogoutButton from '@/components/LogoutButton';
 import ScoreForm from '@/components/ScoreForm';
-import WodTabs from '@/components/WodTabs';
-import { SKILL_CATEGORIES } from '@/lib/equipment';
+import TabBar from '@/components/TabBar';
 import {
   normalizeEquipmentTag,
   resolveWorkoutForAthlete,
@@ -258,126 +257,9 @@ export default async function DashboardPage() {
   const recentPrIsThisWeek =
     recentPr != null && Date.now() - new Date(recentPr.achieved_at).getTime() < 7 * 86400000;
 
-  // "GYM AVERAGE" (mockup 2b) -- average of everyone's 'time' scores on
-  // today's specific workout instance, same query shape the leaderboard
-  // itself runs. Collected once for every enrollment's today-slot rather
-  // than per-render, since a given workout_id only needs this once.
-  const todayWorkoutIds = new Set<string>();
-  for (const enrollment of (enrollments ?? []) as any[]) {
-    for (const cycle of enrollment.programs?.program_cycles ?? []) {
-      for (const slot of cycle.calendar_slots ?? []) {
-        if (slot.date === today && slot.workouts) todayWorkoutIds.add(slot.workouts.id);
-      }
-    }
-  }
-  const { data: gymTimeRows } = todayWorkoutIds.size
-    ? await supabase.from('workout_logs').select('workout_id, result_value').in('workout_id', [...todayWorkoutIds]).eq('result_type', 'time')
-    : { data: [] as any[] };
-  const gymAverageByWorkout = new Map<string, { seconds: number; count: number }>();
-  for (const workoutId of todayWorkoutIds) {
-    const seconds = (gymTimeRows ?? [])
-      .filter((r: any) => r.workout_id === workoutId)
-      .map((r: any) => r.result_value.seconds as number);
-    if (seconds.length) {
-      gymAverageByWorkout.set(workoutId, { seconds: seconds.reduce((a, b) => a + b, 0) / seconds.length, count: seconds.length });
-    }
-  }
-
-  function formatSeconds(seconds: number) {
-    const m = Math.floor(seconds / 60);
-    const s = Math.round(seconds % 60);
-    return `${m}:${String(s).padStart(2, '0')}`;
-  }
-
-  const skillLabelByCategory = new Map(SKILL_CATEGORIES.map((c) => [c.key, c.label]));
-
-  // One movement's card in the "My Rx" tab (mockup 2b) -- built straight
-  // from the resolver's own ResolvedMovement, so the status shown here can
-  // never disagree with what resolveWorkoutForAthlete actually decided.
-  function renderMovementCard(r: ResolvedMovement) {
-    const badge =
-      r.status === 'needs_substitution' || r.status === 'needs_load_data'
-        ? { label: '?', bg: 'var(--hw-pink)' }
-        : r.status === 'scaled'
-          ? { label: 'SCALED', bg: 'var(--hw-mustard)' }
-          : { label: 'RX', bg: 'var(--hw-cyan)' };
-
-    return (
-      <div key={r.prescribedName} className="hw-card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'stretch' }}>
-          <div style={{ flex: 1, padding: '12px 14px', minWidth: 0 }}>
-            <div className="hw-h3" style={{ fontSize: 16 }}>{r.displayName.toUpperCase()}</div>
-            {r.status === 'scaled' ? (
-              <div className="hw-muted" style={{ font: '700 11px/1.6 "Space Mono", monospace' }}>
-                WAS: {r.prescribedName.toUpperCase()}
-              </div>
-            ) : r.status === 'needs_substitution' || r.status === 'needs_load_data' ? (
-              <div style={{ font: '700 11px/1.6 "Space Mono", monospace', color: 'var(--hw-pink-deep)' }}>
-                {r.status === 'needs_load_data'
-                  ? 'NO WEIGHT RECORDED FOR THIS'
-                  : `NOT ON YOUR LIST: ${r.missingEquipment.join(', ').toUpperCase()}`}
-              </div>
-            ) : (
-              <div className="hw-muted" style={{ font: '700 11px/1.6 "Space Mono", monospace' }}>
-                {r.load ? `${r.load.value} ${r.load.unit.toUpperCase()}` : 'BODYWEIGHT'}
-              </div>
-            )}
-          </div>
-          <div
-            style={{
-              width: 56,
-              flex: 'none',
-              background: 'var(--hw-ink)',
-              color: badge.bg,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center',
-              font: '700 10px/1.2 "Space Mono", monospace',
-            }}
-          >
-            {badge.label}
-          </div>
-        </div>
-        {r.status === 'scaled' && (
-          <div style={{ borderTop: '3px dashed var(--hw-ink)', opacity: 0.7, padding: '10px 14px', font: '400 11px/1.5 "Space Grotesk", sans-serif' }}>
-            {r.scaledBecause === 'skill_level' ? (
-              <>Your skill level here is <strong>{skillLevelForMovement(r) ?? 'scaled'}</strong>.</>
-            ) : (
-              'Substituted based on the gear you have on file.'
-            )}
-          </div>
-        )}
-        {r.machineScaleOptions && r.machineScaleOptions.length > 0 && (
-          <div style={{ borderTop: '3px dashed var(--hw-ink)', padding: '12px 14px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {r.machineScaleOptions.map((o) => (
-              <span key={o.machine} className="hw-pill hw-pill-dark">
-                {o.unisex ? `${o.value}${o.unit === 'cal' ? ' CAL' : 'M'}` : `${o.male}/${o.female}${o.unit === 'cal' ? ' CAL' : 'M'}`} {o.machine.toUpperCase()}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Best-effort label for the "your X level is Y" note under a
-  // skill-scaled movement -- the resolver doesn't carry which category it
-  // matched on, so this re-derives it the same way tierForSlot does: the
-  // worst skill level among skill categories on this workout that aren't
-  // already Rx. That's an approximation (a workout with two non-Rx skill
-  // movements would show the same note under both), acceptable since the
-  // note is illustrative, not load-bearing the way the badge itself is.
-  function skillLevelForMovement(_r: ResolvedMovement): string | null {
-    for (const [category, level] of skillLevels) {
-      if (level !== 'rx') return `${skillLabelByCategory.get(category) ?? category} · ${level}`;
-    }
-    return null;
-  }
-
   return (
     <main className="hw-shell">
-      <div className="hw-wrap">
+      <div className="hw-wrap" style={{ paddingBottom: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Link href="/dashboard" style={{ flex: 'none', lineHeight: 0 }}>
             <img src="/logo-dot.png" alt="HalcyonWod" style={{ width: 52, height: 52, objectFit: 'contain' }} />
@@ -665,118 +547,50 @@ export default async function DashboardPage() {
                         )}
                       </>
                     ) : slot.workouts ? (
-                      // 2b's "hero" treatment -- today's WOD only. Navy card, big
-                      // Bungee title, AS WRITTEN/MY RX toggle over the same
-                      // resolver output the other days summarize more tersely,
-                      // stats, and the coach's note promoted out of "Notes" into
-                      // its own dark card.
+                      // Landing preview only (John's request, 2026-09-07: "the
+                      // wod and 'as written' and 'my rx' stuff should all be
+                      // under the 'wod (skull)' page") -- title + gap/sub
+                      // pills, same navy hero card, but the toggle, movement
+                      // cards, scoring, gym average, and coach's note all
+                      // moved to app/wod/page.tsx. This card is just a preview
+                      // with a CTA into that page.
                       <div style={{ marginTop: 10 }}>
-                        <div className="hw-card-dark" style={{ padding: 0, overflow: 'hidden' }}>
-                          <div
-                            style={{
-                              padding: '12px 16px',
-                              borderBottom: '4px solid var(--hw-ink)',
-                              background: 'var(--hw-mustard)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              gap: 8,
-                            }}
-                          >
-                            <span className="hw-label" style={{ color: 'var(--hw-ink)' }}>TODAY&apos;S WOD</span>
-                            {slot.workouts.is_benchmark && <span className="hw-pill hw-pill-dark">Benchmark</span>}
-                          </div>
-                          <div style={{ padding: '18px 16px' }}>
-                            <div className="hw-h1" style={{ fontSize: 30, textShadow: '3px 3px 0 var(--hw-pink)' }}>
-                              {slot.workouts.title ?? 'TODAY’S WOD'}
+                        <Link href="/wod" style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
+                          <div className="hw-card-dark" style={{ padding: 0, overflow: 'hidden' }}>
+                            <div
+                              style={{
+                                padding: '12px 16px',
+                                borderBottom: '4px solid var(--hw-ink)',
+                                background: 'var(--hw-mustard)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 8,
+                              }}
+                            >
+                              <span className="hw-label" style={{ color: 'var(--hw-ink)' }}>TODAY&apos;S WOD</span>
+                              {slot.workouts.is_benchmark && <span className="hw-pill hw-pill-dark">Benchmark</span>}
                             </div>
-                            {!hasRecordedEquipment ? null : (
-                              <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-                                {gaps.length > 0 && (
-                                  <span className="hw-pill hw-pill-pink">{gaps.length} GAP{gaps.length === 1 ? '' : 'S'} FOR YOU</span>
-                                )}
-                                {scaled.length > 0 && (
-                                  <span className="hw-pill hw-pill-cyan">{scaled.length} SUB{scaled.length === 1 ? '' : 'S'} FOR YOU</span>
-                                )}
+                            <div style={{ padding: '18px 16px' }}>
+                              <div className="hw-h1" style={{ fontSize: 30, textShadow: '3px 3px 0 var(--hw-pink)' }}>
+                                {slot.workouts.title ?? 'TODAY’S WOD'}
                               </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div style={{ marginTop: 12 }}>
-                          <WodTabs
-                            asWritten={
-                              <pre
-                                style={{
-                                  whiteSpace: 'pre-wrap',
-                                  font: '700 12px/1.7 "Space Mono", monospace',
-                                  color: 'var(--hw-ink)',
-                                  margin: 0,
-                                }}
-                              >
-                                {slot.workouts.raw_text ?? '(no content yet)'}
-                              </pre>
-                            }
-                            myRx={
-                              !hasRecordedEquipment ? (
-                                <div className="hw-card" style={{ background: 'var(--hw-violet)', color: 'var(--hw-paper)' }}>
-                                  <p style={{ margin: 0, fontSize: 13 }}>
-                                    Add your equipment and skill level to see your actual Rx for this workout.
-                                  </p>
-                                  <Link href="/account" className="hw-btn hw-btn-mustard" style={{ marginTop: 12, fontSize: 14, padding: 12 }}>
-                                    Set up your gear →
-                                  </Link>
+                              {hasRecordedEquipment && (
+                                <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+                                  {gaps.length > 0 && (
+                                    <span className="hw-pill hw-pill-pink">{gaps.length} GAP{gaps.length === 1 ? '' : 'S'} FOR YOU</span>
+                                  )}
+                                  {scaled.length > 0 && (
+                                    <span className="hw-pill hw-pill-cyan">{scaled.length} SUB{scaled.length === 1 ? '' : 'S'} FOR YOU</span>
+                                  )}
                                 </div>
-                              ) : resolved.length === 0 ? (
-                                <p className="hw-muted">Nothing to resolve for this one.</p>
-                              ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                  {resolved.map((r) => renderMovementCard(r))}
-                                </div>
-                              )
-                            }
-                          />
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
-                          <ScoreForm
-                            workoutId={slot.workouts.id}
-                            calendarSlotId={slot.id}
-                            movements={allMovementRows ?? []}
-                            tier={tierForSlot(slot)}
-                          />
-                          <Link href={`/leaderboard/${slot.workouts.id}`} className="hw-btn hw-btn-dark" style={{ fontSize: 13, padding: 12 }}>
-                            The board →
-                          </Link>
-                        </div>
-
-                        {gymAverageByWorkout.has(slot.workouts.id) && (
-                          <div className="hw-card" style={{ marginTop: 12, background: 'var(--hw-orange)' }}>
-                            <span className="hw-label">GYM AVERAGE</span>
-                            <div style={{ font: '700 22px/1.3 "Space Mono", monospace', marginTop: 4 }}>
-                              {formatSeconds(gymAverageByWorkout.get(slot.workouts.id)!.seconds)}
-                            </div>
-                            <div style={{ font: '400 10px/1 "Space Mono", monospace' }}>
-                              {gymAverageByWorkout.get(slot.workouts.id)!.count} score
-                              {gymAverageByWorkout.get(slot.workouts.id)!.count === 1 ? '' : 's'} in
+                              )}
                             </div>
                           </div>
-                        )}
-
-                        {(slot.workouts.coach_notes || slot.workouts.scaling_notes) && (
-                          <div className="hw-card-dark" style={{ marginTop: 12 }}>
-                            <span className="hw-label" style={{ color: 'var(--hw-cyan)' }}>COACH&apos;S NOTE</span>
-                            {slot.workouts.coach_notes && (
-                              <p style={{ fontSize: 13, margin: '8px 0 0' }}>{slot.workouts.coach_notes}</p>
-                            )}
-                            {slot.workouts.scaling_notes && (
-                              <p style={{ fontSize: 13, margin: '8px 0 0' }}>
-                                <strong>Scaling: </strong>
-                                {slot.workouts.scaling_notes}
-                              </p>
-                            )}
-                          </div>
-                        )}
+                        </Link>
+                        <Link href="/wod" className="hw-btn hw-btn-mustard" style={{ marginTop: 10, fontSize: 14, padding: 12 }}>
+                          Open today&apos;s WOD →
+                        </Link>
                       </div>
                     ) : (
                       <p className="hw-muted" style={{ marginTop: 10 }}>Not generated yet.</p>
@@ -788,6 +602,7 @@ export default async function DashboardPage() {
           );
         })}
       </div>
+      <TabBar />
     </main>
   );
 }
