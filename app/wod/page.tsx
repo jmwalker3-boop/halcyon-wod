@@ -23,9 +23,23 @@ import {
 // the hero card as a preview; everything interactive (the As Written/My
 // Rx toggle, per-movement cards, scoring, gym average, coach's note)
 // lives here instead. Query logic is the same as dashboard's, just scoped
-// to today only -- this page has no reason to know about the rest of the
-// week.
-export default async function WodPage() {
+// to one day at a time -- this page has no reason to know about the rest
+// of the week except to link to it.
+//
+// Date-paged via ?date= (John's request, same day: "Landing page should
+// show 'Today's wod' card, but no other wods. The week's wods can be
+// clicked-through with a 'Tomorrow's Wod' button or an arrow... there can
+// be a 'Tuesday's WOD', 'Wednesday's WOD', etc.") -- clamped to the same
+// rolling 7-day window (today..today+6) the dashboard used to render as a
+// single list, so paging forward can't wander into days that were never
+// generated.
+function addDays(iso: string, n: number) {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+export default async function WodPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -33,6 +47,18 @@ export default async function WodPage() {
   if (!user) redirect('/login');
 
   const today = new Date().toISOString().slice(0, 10);
+  const maxDate = addDays(today, 6);
+  const { date: dateParam } = await searchParams;
+  const targetDate =
+    dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) && dateParam >= today && dateParam <= maxDate ? dateParam : today;
+
+  const dayTitle =
+    targetDate === today ? "Today's WOD" : `${new Date(`${targetDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' })}'s WOD`;
+  const dayLabel = dayTitle.toUpperCase();
+  const prevDate = targetDate > today ? addDays(targetDate, -1) : null;
+  const nextDate = targetDate < maxDate ? addDays(targetDate, 1) : null;
+  const prevLabel = prevDate === today ? "Today's WOD" : prevDate ? `${new Date(`${prevDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' })}'s WOD` : null;
+  const nextLabel = nextDate ? `${new Date(`${nextDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' })}'s WOD` : null;
 
   const { data: enrollments } = await supabase
     .from('program_enrollments')
@@ -227,29 +253,42 @@ export default async function WodPage() {
     );
   }
 
-  // Find today's slot -- first enrollment/cycle whose calendar_slots
-  // contains today, same "one program" assumption the rest of the app
-  // makes. undefined if not enrolled, or enrolled but no slot today.
-  let todaySlot: any = null;
+  // Find the target day's slot -- first enrollment/cycle whose
+  // calendar_slots contains it, same "one program" assumption the rest of
+  // the app makes. undefined if not enrolled, or enrolled but no slot
+  // that day.
+  let daySlot: any = null;
   for (const enrollment of (enrollments ?? []) as any[]) {
     for (const cycle of enrollment.programs?.program_cycles ?? []) {
-      const slot = (cycle.calendar_slots ?? []).find((s: any) => s.date === today);
+      const slot = (cycle.calendar_slots ?? []).find((s: any) => s.date === targetDate);
       if (slot) {
-        todaySlot = { slot, cycle };
+        daySlot = { slot, cycle };
         break;
       }
     }
-    if (todaySlot) break;
+    if (daySlot) break;
   }
 
-  if (!todaySlot || !todaySlot.slot.workouts) {
+  const dayNav = (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 12 }}>
+      {prevDate ? (
+        <Link href={`/wod?date=${prevDate}`} className="hw-link-back">← {prevLabel}</Link>
+      ) : (
+        <span />
+      )}
+      {nextDate && <Link href={`/wod?date=${nextDate}`} className="hw-link-back">{nextLabel} →</Link>}
+    </div>
+  );
+
+  if (!daySlot || !daySlot.slot.workouts) {
     return (
       <main className="hw-shell">
         <div className="hw-wrap" style={{ paddingBottom: 100 }}>
           <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
-          <div className="hw-h1" style={{ fontSize: 26, marginTop: 12 }}>Today&apos;s WOD</div>
+          <div className="hw-h1" style={{ fontSize: 26, marginTop: 12 }}>{dayTitle}</div>
+          {dayNav}
           <div className="hw-card" style={{ marginTop: 16 }}>
-            <p style={{ margin: 0 }}>Nothing scheduled for today.</p>
+            <p style={{ margin: 0 }}>Nothing scheduled {targetDate === today ? 'for today' : 'that day'}.</p>
           </div>
         </div>
         <TabBar />
@@ -257,7 +296,7 @@ export default async function WodPage() {
     );
   }
 
-  const { slot } = todaySlot;
+  const { slot } = daySlot;
   const resolved = resolveSlotEquipment(slot);
   const scaled = resolved.filter((r) => r.status === 'scaled');
   const gaps = resolved.filter((r) => r.status === 'needs_substitution');
@@ -278,6 +317,7 @@ export default async function WodPage() {
     <main className="hw-shell">
       <div className="hw-wrap" style={{ paddingBottom: 100 }}>
         <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
+        {dayNav}
 
         <div className="hw-card-dark" style={{ marginTop: 12, padding: 0, overflow: 'hidden' }}>
           <div
@@ -291,12 +331,12 @@ export default async function WodPage() {
               gap: 8,
             }}
           >
-            <span className="hw-label" style={{ color: 'var(--hw-ink)' }}>TODAY&apos;S WOD</span>
+            <span className="hw-label" style={{ color: 'var(--hw-ink)' }}>{dayLabel}</span>
             {slot.workouts.is_benchmark && <span className="hw-pill hw-pill-dark">Benchmark</span>}
           </div>
           <div style={{ padding: '18px 16px' }}>
             <div className="hw-h1" style={{ fontSize: 30, textShadow: '3px 3px 0 var(--hw-pink)' }}>
-              {slot.workouts.title ?? 'TODAY’S WOD'}
+              {slot.workouts.title ?? dayLabel}
             </div>
             {hasRecordedEquipment && (
               <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
@@ -389,4 +429,3 @@ export default async function WodPage() {
     </main>
   );
 }
-
