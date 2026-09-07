@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import LogoutButton from '@/components/LogoutButton';
 import { createClient } from '@/lib/supabase/client';
+import TabBar from '@/components/TabBar';
 import { EQUIPMENT_OPTIONS, SKILL_CATEGORIES, LEVELS, type SkillCategoryKey, type SkillLevelValue } from '@/lib/equipment';
 
 // Consolidated account hub (John's request, 2026-09-07: "we should have an
@@ -708,6 +709,7 @@ export default function AccountPage() {
           </div>
         </div>
       </div>
+      <TabBar />
     </main>
   );
 }
