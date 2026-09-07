@@ -10,19 +10,30 @@ import OnboardingWizard, { type Track } from './OnboardingWizard';
 // Redirects straight to /dashboard if the athlete already has an active
 // enrollment -- this is a first-run flow, not a settings page (that's
 // /account, which reuses the same gear/skill fields for later edits).
-export default async function OnboardingPage() {
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ switch?: string }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const { data: enrollments } = await supabase
-    .from('program_enrollments')
-    .select('program_id')
-    .eq('profile_id', user.id)
-    .eq('active', true);
-  if (enrollments && enrollments.length > 0) redirect('/dashboard');
+  // /account's "switch / add a track" link reopens this same picker for an
+  // already-enrolled athlete -- everything below this still works exactly
+  // as it does for a first-run athlete (upsert, not insert-only), so a
+  // returning visit through here is just as safe as a first one.
+  const { switch: switchParam } = await searchParams;
+  if (!switchParam) {
+    const { data: enrollments } = await supabase
+      .from('program_enrollments')
+      .select('program_id')
+      .eq('profile_id', user.id)
+      .eq('active', true);
+    if (enrollments && enrollments.length > 0) redirect('/dashboard');
+  }
 
   // program_cycles carries the two facts the mockup shows as badges on each
   // track card (length_days -> "42-DAY CYCLE", format_pattern -> "3 ON · 1

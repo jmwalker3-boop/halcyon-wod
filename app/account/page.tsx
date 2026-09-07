@@ -39,6 +39,13 @@ export default function AccountPage() {
   const [equipment, setEquipment] = useState<Set<string>>(new Set());
   const [skillLevels, setSkillLevels] = useState<Record<string, SkillLevelValue>>({});
   const [saveState, setSaveState] = useState<SaveState>('idle');
+  // Snapshots of what's actually saved, so the sticky bar (mockup 3d's
+  // "UNSAVED CHANGES · N EDITS") can report a real edit count instead of
+  // just "there might be changes."
+  const [savedEquipment, setSavedEquipment] = useState<Set<string>>(new Set());
+  const [savedSkillLevels, setSavedSkillLevels] = useState<Record<string, SkillLevelValue>>({});
+
+  const [trackNames, setTrackNames] = useState<string[]>([]);
 
   const [newPassword, setNewPassword] = useState('');
   const [passwordState, setPasswordState] = useState<SaveState>('idle');
@@ -69,6 +76,7 @@ export default function AccountPage() {
         { data: equipmentRows, error: equipmentError },
         { data: skillRows, error: skillError },
         { data: subscriptionRow },
+        { data: enrollmentRows },
       ] = await Promise.all([
         supabase.from('profiles').select('display_name, avatar_url, timezone').eq('id', user.id).single(),
         supabase.from('profile_equipment').select('equipment_tag').eq('profile_id', user.id),
@@ -80,6 +88,11 @@ export default function AccountPage() {
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
+        // "YOUR TRACK" card (mockup 3d) -- every program this athlete is
+        // currently active in. Multiple is a supported state (per the
+        // design chat: an athlete can be enrolled in more than one
+        // program), so this lists all of them rather than assuming one.
+        supabase.from('program_enrollments').select('programs ( name )').eq('profile_id', user.id).eq('active', true),
       ]);
 
       if (profileFetchError || equipmentError || skillError) {
@@ -91,8 +104,13 @@ export default function AccountPage() {
       setDisplayName(profileRow?.display_name ?? '');
       setAvatarUrl(profileRow?.avatar_url ?? null);
       setTimezone(profileRow?.timezone ?? 'UTC');
-      setEquipment(new Set((equipmentRows ?? []).map((r: any) => r.equipment_tag)));
-      setSkillLevels(Object.fromEntries((skillRows ?? []).map((r: any) => [r.skill_category, r.level])));
+      const loadedEquipment = new Set<string>((equipmentRows ?? []).map((r: any) => r.equipment_tag));
+      const loadedSkillLevels = Object.fromEntries((skillRows ?? []).map((r: any) => [r.skill_category, r.level]));
+      setEquipment(loadedEquipment);
+      setSkillLevels(loadedSkillLevels);
+      setSavedEquipment(loadedEquipment);
+      setSavedSkillLevels(loadedSkillLevels);
+      setTrackNames((enrollmentRows ?? []).map((r: any) => r.programs?.name).filter(Boolean));
       if (subscriptionRow) {
         setBilling({ status: subscriptionRow.status, planName: (subscriptionRow as any).plans?.name ?? 'Plan' });
       }
@@ -318,8 +336,19 @@ export default function AccountPage() {
       return;
     }
 
+    setSavedEquipment(new Set(equipment));
+    setSavedSkillLevels({ ...skillLevels });
     setSaveState('saved');
   }
+
+  // Edit count for the sticky bar (mockup 3d: "UNSAVED CHANGES · N EDITS")
+  // -- a real diff against what's actually saved, not just "the form is
+  // open." Skill levels only count a category once even if it's been
+  // flipped back and forth, same as equipment.
+  const equipmentEdits =
+    [...equipment].filter((t) => !savedEquipment.has(t)).length + [...savedEquipment].filter((t) => !equipment.has(t)).length;
+  const skillEdits = SKILL_CATEGORIES.filter((c) => (skillLevels[c.key] ?? 'rx') !== (savedSkillLevels[c.key] ?? 'rx')).length;
+  const unsavedEdits = equipmentEdits + skillEdits;
 
   if (loadState === 'loading') {
     return (
@@ -560,11 +589,34 @@ export default function AccountPage() {
           </div>
         </div>
 
+        <div className="hw-card" style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <span className="hw-h3" style={{ fontSize: 15 }}>YOUR TRACK</span>
+            <p className="hw-muted" style={{ fontSize: 12, marginTop: 4 }}>
+              {trackNames.length > 0 ? trackNames.join(' + ') : 'Not enrolled in a program yet.'}
+            </p>
+          </div>
+          <Link href="/onboarding?switch=1" className="hw-pill hw-pill-outline" style={{ flex: 'none' }}>
+            {trackNames.length > 0 ? 'SWITCH' : 'PICK ONE →'}
+          </Link>
+        </div>
+
         <div className="hw-sticky-bar">
           <span className="hw-label" style={{ flex: 1 }}>
-            {saveState === 'saved' ? 'SAVED' : saveState === 'error' ? 'SAVE FAILED' : 'REVIEW & SAVE'}
+            {saveState === 'saved'
+              ? 'SAVED'
+              : saveState === 'error'
+                ? 'SAVE FAILED'
+                : unsavedEdits > 0
+                  ? `UNSAVED CHANGES · ${unsavedEdits} EDIT${unsavedEdits === 1 ? '' : 'S'}`
+                  : 'NO CHANGES'}
           </span>
-          <button type="submit" disabled={saveState === 'saving'} className="hw-btn hw-btn-dark" style={{ width: 'auto', padding: '13px 22px' }}>
+          <button
+            type="submit"
+            disabled={saveState === 'saving' || unsavedEdits === 0}
+            className="hw-btn hw-btn-dark"
+            style={{ width: 'auto', padding: '13px 22px', opacity: unsavedEdits === 0 ? 0.6 : 1 }}
+          >
             {saveState === 'saving' ? 'Saving…' : 'Save'}
           </button>
         </div>
