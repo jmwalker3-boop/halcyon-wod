@@ -266,6 +266,13 @@ export interface Database {
         Args: { target_email: string };
         Returns: undefined;
       };
+      // Same is_admin()-gated SECURITY DEFINER shape as admin_enroll_by_email
+      // (see 20260907150000_admin_unenroll.sql) -- flips program_enrollments.active
+      // instead of inserting a new row.
+      admin_set_enrollment_active: {
+        Args: { target_profile_id: string; is_active: boolean };
+        Returns: undefined;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
