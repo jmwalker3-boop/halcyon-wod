@@ -70,6 +70,10 @@ export default function AccountPage() {
   const [profileState, setProfileState] = useState<SaveState>('idle');
   const [profileError, setProfileError] = useState<string | null>(null);
 
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+
   const [equipment, setEquipment] = useState<Set<string>>(new Set());
   const [skillLevels, setSkillLevels] = useState<Record<string, SkillLevelValue>>({});
   const [saveState, setSaveState] = useState<SaveState>('idle');
@@ -98,7 +102,7 @@ export default function AccountPage() {
         { data: skillRows, error: skillError },
         { data: subscriptionRow },
       ] = await Promise.all([
-        supabase.from('profiles').select('display_name, timezone').eq('id', user.id).single(),
+        supabase.from('profiles').select('display_name, avatar_url, timezone').eq('id', user.id).single(),
         supabase.from('profile_equipment').select('equipment_tag').eq('profile_id', user.id),
         supabase.from('profile_skill_levels').select('skill_category, level').eq('profile_id', user.id),
         supabase
@@ -117,6 +121,7 @@ export default function AccountPage() {
       }
 
       setDisplayName(profileRow?.display_name ?? '');
+      setAvatarUrl(profileRow?.avatar_url ?? null);
       setTimezone(profileRow?.timezone ?? 'UTC');
       setEquipment(new Set((equipmentRows ?? []).map((r: any) => r.equipment_tag)));
       setSkillLevels(Object.fromEntries((skillRows ?? []).map((r: any) => [r.skill_category, r.level])));
@@ -159,6 +164,45 @@ export default function AccountPage() {
       return;
     }
     setProfileState('saved');
+  }
+
+  // Uploads to the `avatars` storage bucket under <user.id>/, then writes
+  // the public URL onto profiles.avatar_url. Bucket is public-read with
+  // owner-only write policies keyed on the first path segment (see
+  // supabase/migrations -- storage policies aren't file-based like the rest
+  // of the schema, they were applied directly via the SQL editor).
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarUploading(true);
+    setAvatarError(null);
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setAvatarUploading(false);
+      setAvatarError('Not signed in.');
+      return;
+    }
+    const ext = file.name.split('.').pop() || 'jpg';
+    const path = `${user.id}/avatar.${ext}`;
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+    if (uploadError) {
+      setAvatarUploading(false);
+      setAvatarError(uploadError.message);
+      return;
+    }
+    const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(path);
+    const url = `${publicUrlData.publicUrl}?t=${Date.now()}`;
+    const { error: updateError } = await supabase.from('profiles').update({ avatar_url: url }).eq('id', user.id);
+    if (updateError) {
+      setAvatarUploading(false);
+      setAvatarError(updateError.message);
+      return;
+    }
+    setAvatarUrl(url);
+    setAvatarUploading(false);
   }
 
   // Lets an account that only ever signed in via magic link set a password,
@@ -274,12 +318,48 @@ export default function AccountPage() {
           <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
           <LogoutButton />
         </div>
-        <div className="hw-h1" style={{ fontSize: 26 }}>Account</div>
-        <p className="hw-lede">Profile, gear, skill level, sign-in, and billing -- all in one place.</p>
+        <div className="hw-h1" style={{ fontSize: 26, marginTop: 12 }}>Account</div>
 
         <form onSubmit={handleSaveProfile} className="hw-card" style={{ marginTop: 16 }}>
           <span className="hw-h3">Profile</span>
-          <span className="hw-label" style={{ display: 'block', marginTop: 12 }}>Display name</span>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12 }}>
+            <div
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: '50%',
+                border: '2px solid var(--hw-ink)',
+                background: avatarUrl ? `center/cover no-repeat url(${avatarUrl})` : 'var(--hw-violet)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                overflow: 'hidden',
+                font: '700 22px/1 "Space Grotesk", sans-serif',
+              }}
+            >
+              {!avatarUrl && (displayName.trim().charAt(0).toUpperCase() || '?')}
+            </div>
+            <div>
+              <label
+                className="hw-btn hw-btn-dark"
+                style={{ width: 'auto', padding: '8px 16px', fontSize: 12, cursor: avatarUploading ? 'default' : 'pointer', display: 'inline-block', position: 'relative' }}
+              >
+                {avatarUploading ? 'Uploading…' : 'Change photo'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarChange}
+                  disabled={avatarUploading}
+                  style={{ position: 'absolute', opacity: 0, width: 1, height: 1 }}
+                />
+              </label>
+              {avatarError && <p className="hw-error" style={{ fontSize: 12, marginTop: 6 }}>{avatarError}</p>}
+            </div>
+          </div>
+
+          <span className="hw-label" style={{ display: 'block', marginTop: 16 }}>Display name</span>
           <input
             type="text"
             required
@@ -494,4 +574,3 @@ export default function AccountPage() {
     </main>
   );
 }
-
