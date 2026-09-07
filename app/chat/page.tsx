@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import Avatar from '@/components/Avatar';
+import TabBar from '@/components/TabBar';
 
 // One shared channel, no DMs/rooms/typing indicators -- John's call
 // (2026-09-07): "nothing more elaborate than a Discord server's chat."
@@ -127,7 +128,8 @@ export default function ChatPage() {
   }
 
   return (
-    <main className="hw-shell" style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
+    <>
+    <main className="hw-shell" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 90px)' }}>
       <div className="hw-wrap" style={{ paddingBottom: 12, flex: 'none' }}>
         <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
         <div className="hw-h1" style={{ fontSize: 26, marginTop: 12 }}>Chat</div>
@@ -180,6 +182,7 @@ export default function ChatPage() {
         </button>
       </form>
     </main>
+    <TabBar />
+    </>
   );
 }
-
