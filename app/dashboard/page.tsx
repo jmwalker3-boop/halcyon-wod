@@ -214,6 +214,7 @@ export default async function DashboardPage() {
             {isAdmin && <Link href="/coach" className="hw-link-back">Coach Deck</Link>}
             {isAdmin && <Link href="/admin" className="hw-link-back">Admin</Link>}
             <Link href="/prs" className="hw-link-back">PRs</Link>
+            <Link href="/chat" className="hw-link-back">Chat</Link>
             <Link href="/billing" className="hw-link-back">Billing</Link>
             <Link href="/account" className="hw-link-back">Account</Link>
             <LogoutButton />
