@@ -232,8 +232,8 @@ export interface Database {
         Relationships: [];
       };
       reactions: {
-        Row: { id: string; post_id: string | null; comment_id: string | null; profile_id: string; type: string; created_at: string };
-        Insert: { id?: string; post_id?: string | null; comment_id?: string | null; profile_id: string; type: string };
+        Row: { id: string; post_id: string | null; comment_id: string | null; workout_log_id: string | null; profile_id: string; type: string; created_at: string };
+        Insert: { id?: string; post_id?: string | null; comment_id?: string | null; workout_log_id?: string | null; profile_id: string; type: string };
         Update: never;
         Relationships: [];
       };
