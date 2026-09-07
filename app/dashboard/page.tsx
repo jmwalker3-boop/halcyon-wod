@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import LogoutButton from '@/components/LogoutButton';
 import ScoreForm from '@/components/ScoreForm';
 import TabBar from '@/components/TabBar';
 import {
@@ -288,19 +287,18 @@ export default async function DashboardPage() {
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-          {/* Movement Library (app/movements) deliberately unlinked here, 2026-09-06 --
-              John's call: it doesn't need to be athlete-facing, possibly doesn't need to
-              exist at all. Route itself left in place (harmless, unreachable without a
-              direct link) rather than deleted, since he hasn't decided that part yet. */}
-          {isAdmin && <Link href="/coach" className="hw-link-back">Coach Deck</Link>}
-          {isAdmin && <Link href="/admin" className="hw-link-back">Admin</Link>}
-          <Link href="/prs" className="hw-link-back">PRs</Link>
-          <Link href="/chat" className="hw-link-back">Chat</Link>
-          <Link href="/billing" className="hw-link-back">Billing</Link>
-          <Link href="/account" className="hw-link-back">Account</Link>
-          <LogoutButton />
-        </div>
+        {/* Coach Deck / PRs / Chat / Billing / Account / Log out all dropped
+            from here, 2026-09-07 (John's call: "remove redundant buttons on
+            the top") -- PRs/Chat/Account are already one tap away via the
+            bottom TabBar, Billing and Log out already live on /account, and
+            Coach Deck moved onto /admin (still gets there from Admin, just
+            not duplicated on every dashboard load). Admin is the one entry
+            point with nowhere else to live, so it's the only one left. */}
+        {isAdmin && (
+          <div style={{ marginTop: 12 }}>
+            <Link href="/admin" className="hw-link-back">Admin</Link>
+          </div>
+        )}
 
         <p className="hw-h2" style={{ fontSize: 17, marginTop: 16 }}>
           HEY{profile?.display_name ? ` ${profile.display_name.toUpperCase()}` : ''} — YOU&apos;RE UP.
