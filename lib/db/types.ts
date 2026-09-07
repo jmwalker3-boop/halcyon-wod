@@ -31,9 +31,9 @@ export interface Database {
   public: {
     Tables: {
       profiles: {
-        Row: { id: string; role: ProfileRole; display_name: string | null };
-        Insert: { id: string; role?: ProfileRole; display_name?: string | null };
-        Update: Partial<{ role: ProfileRole; display_name: string | null }>;
+        Row: { id: string; role: ProfileRole; display_name: string | null; timezone: string };
+        Insert: { id: string; role?: ProfileRole; display_name?: string | null; timezone?: string };
+        Update: Partial<{ role: ProfileRole; display_name: string | null; timezone: string }>;
         Relationships: [];
       };
       programs: {
