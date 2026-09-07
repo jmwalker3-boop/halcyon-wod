@@ -165,6 +165,28 @@ export default async function DashboardPage() {
     return resolveWorkoutForAthlete(toResolve, owned, rx);
   }
 
+  // The leaderboard's silo filter/badge (mockup 2c) needs one tier per
+  // logged score, not the resolver's per-movement scaling detail -- this
+  // is the worst (most-scaled) of the athlete's own recorded skill levels
+  // across whatever skill categories this workout's movements actually
+  // touch. A workout with no gymnastics skill movements at all (e.g. a
+  // pure barbell/metcon day) has no relevant categories, so it's 'rx' by
+  // definition, not because the athlete happens to be Rx everywhere.
+  function tierForSlot(slot: any): AthleteSkillLevel {
+    const categories = new Set<SkillCategory>(
+      (slot.workouts?.workout_movements ?? [])
+        .map((wm: any) => wm.movements?.skill_category)
+        .filter(Boolean),
+    );
+    let worst: AthleteSkillLevel = 'rx';
+    for (const category of categories) {
+      const level = skillLevels.get(category) ?? 'rx';
+      if (level === 'beginner') return 'beginner';
+      if (level === 'intermediate') worst = 'intermediate';
+    }
+    return worst;
+  }
+
   // Admin-only, not "coach or admin" -- John's own call (2026-09-05): a
   // future assistant coach should be able to have an account without
   // getting Coach Deck / internal-programming-jargon visibility, so that
@@ -362,7 +384,12 @@ export default async function DashboardPage() {
 
                     {slot.workouts && (
                       <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                        <ScoreForm workoutId={slot.workouts.id} calendarSlotId={slot.id} movements={allMovementRows ?? []} />
+                        <ScoreForm
+                          workoutId={slot.workouts.id}
+                          calendarSlotId={slot.id}
+                          movements={allMovementRows ?? []}
+                          tier={tierForSlot(slot)}
+                        />
                         <Link href={`/leaderboard/${slot.workouts.id}`} className="hw-link-back" style={{ marginTop: 10 }}>
                           Leaderboard →
                         </Link>
