@@ -44,6 +44,10 @@ export default function AdminPage() {
   const [pwPassword, setPwPassword] = useState('');
   const [settingPassword, setSettingPassword] = useState(false);
   const [pwMessage, setPwMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<{ id: string; text: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   async function loadEnrollments() {
     const supabase = createClient();
@@ -139,6 +143,66 @@ export default function AdminPage() {
       setPwMessage({ kind: 'error', text: err instanceof Error ? err.message : 'Network error.' });
     } finally {
       setSettingPassword(false);
+    }
+  }
+
+  // Mirrors admin_enroll_by_email's RPC pattern -- admin_set_enrollment_active
+  // (see 20260907150000_admin_unenroll.sql) is the same is_admin()-gated
+  // SECURITY DEFINER shape, just flipping active off (or back on) instead
+  // of inserting. John's request, 2026-09-07: admin should be able to
+  // unenroll, not just enroll.
+  async function handleToggleActive(profileId: string, nextActive: boolean) {
+    setBusyId(profileId);
+    setRowError(null);
+    const supabase = createClient();
+    const { error: rpcError } = await supabase.rpc('admin_set_enrollment_active', {
+      target_profile_id: profileId,
+      is_active: nextActive,
+    });
+    setBusyId(null);
+    if (rpcError) {
+      setRowError({ id: profileId, text: rpcError.message });
+      return;
+    }
+    await loadEnrollments();
+  }
+
+  // Full account deletion, not just unenroll -- hits app/api/admin/delete-user
+  // for the same reason set-password does (deleting another account's
+  // auth.users row isn't something the anon-key client can do under RLS).
+  // Gated by typing the athlete's exact display name first: this is
+  // permanent (every table referencing profiles cascades on delete), so a
+  // single misclick shouldn't be enough to do it.
+  async function handleDelete(profileId: string, displayName: string) {
+    if (deleteConfirmText.trim() !== displayName) {
+      setRowError({ id: profileId, text: 'Name doesn\'t match.' });
+      return;
+    }
+    setBusyId(profileId);
+    setRowError(null);
+    try {
+      const res = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileId }),
+      });
+      let body: { error?: string } = {};
+      try {
+        body = await res.json();
+      } catch {
+        // Non-JSON error body -- fall through to the generic message below.
+      }
+      if (!res.ok) {
+        setRowError({ id: profileId, text: body.error ?? `Request failed (${res.status}).` });
+        return;
+      }
+      setDeleteTarget(null);
+      setDeleteConfirmText('');
+      await loadEnrollments();
+    } catch (err) {
+      setRowError({ id: profileId, text: err instanceof Error ? err.message : 'Network error.' });
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -303,21 +367,100 @@ export default function AdminPage() {
               <p className="hw-muted" style={{ margin: 0 }}>No one enrolled yet.</p>
             </div>
           )}
-          {enrollments.map((e) => (
-            <div
-              key={e.profile_id}
-              className="hw-card"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12 }}
-            >
-              <span style={{ fontSize: 13, fontWeight: 700 }}>
-                {e.profiles?.display_name || '(no name set)'}
-              </span>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <span className="hw-pill hw-pill-outline">{e.profiles?.role}</span>
-                {!e.active && <span className="hw-pill hw-pill-outline">inactive</span>}
+          {enrollments.map((e) => {
+            const name = e.profiles?.display_name || '(no name set)';
+            const busy = busyId === e.profile_id;
+            return (
+              <div key={e.profile_id} className="hw-card" style={{ padding: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{name}</span>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <span className="hw-pill hw-pill-outline">{e.profiles?.role}</span>
+                    {!e.active && <span className="hw-pill hw-pill-outline">inactive</span>}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => handleToggleActive(e.profile_id, !e.active)}
+                    className="hw-btn hw-btn-dark"
+                    style={{ width: 'auto', padding: '7px 14px', fontSize: 12 }}
+                  >
+                    {e.active ? 'Unenroll' : 'Re-enroll'}
+                  </button>
+                  {deleteTarget === e.profile_id ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        setDeleteTarget(null);
+                        setDeleteConfirmText('');
+                        setRowError(null);
+                      }}
+                      className="hw-btn"
+                      style={{ width: 'auto', padding: '7px 14px', fontSize: 12, border: '2px solid var(--hw-ink)' }}
+                    >
+                      Cancel
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        setDeleteTarget(e.profile_id);
+                        setDeleteConfirmText('');
+                        setRowError(null);
+                      }}
+                      className="hw-btn"
+                      style={{ width: 'auto', padding: '7px 14px', fontSize: 12, border: '2px solid var(--hw-pink-deep)', color: 'var(--hw-pink-deep)' }}
+                    >
+                      Delete account
+                    </button>
+                  )}
+                </div>
+
+                {deleteTarget === e.profile_id && (
+                  <div style={{ marginTop: 10 }}>
+                    <p className="hw-muted" style={{ fontSize: 12, margin: 0 }}>
+                      This permanently deletes {name}&apos;s account -- scores, PRs, posts, everything. Type{' '}
+                      <strong>{name}</strong> to confirm.
+                    </p>
+                    <input
+                      type="text"
+                      value={deleteConfirmText}
+                      onChange={(ev) => setDeleteConfirmText(ev.target.value)}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        marginTop: 8,
+                        font: '700 13px/1 "Space Grotesk", sans-serif',
+                        padding: '10px 12px',
+                        border: '2px solid var(--hw-pink-deep)',
+                        borderRadius: 8,
+                        background: 'var(--hw-paper)',
+                        color: 'var(--hw-ink)',
+                      }}
+                    />
+                    <button
+                      type="button"
+                      disabled={busy || deleteConfirmText.trim() !== name}
+                      onClick={() => handleDelete(e.profile_id, name)}
+                      className="hw-btn"
+                      style={{ marginTop: 8, width: 'auto', padding: '9px 16px', fontSize: 13, background: 'var(--hw-pink-deep)', color: 'var(--hw-paper)' }}
+                    >
+                      {busy ? 'Deleting…' : 'Confirm delete'}
+                    </button>
+                  </div>
+                )}
+
+                {rowError?.id === e.profile_id && (
+                  <p className="hw-error" style={{ marginTop: 8, marginBottom: 0, fontSize: 12 }}>{rowError.text}</p>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </main>
