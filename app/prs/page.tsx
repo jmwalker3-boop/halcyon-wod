@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import Avatar from '@/components/Avatar';
 
 // Searchable PR log (John's request, 2026-09-07: "auto detects a PR and
 // should be searchable"). personal_records already gets a new row from
@@ -18,7 +19,7 @@ type Row = {
   record_type: string;
   value: number;
   achieved_at: string;
-  profiles: { display_name: string | null } | null;
+  profiles: { display_name: string | null; avatar_url: string | null } | null;
   movements: { canonical_name: string } | null;
 };
 
@@ -32,7 +33,7 @@ export default function PrsPage() {
       const supabase = createClient();
       const { data, error } = await supabase
         .from('personal_records')
-        .select('id, profile_id, movement_id, record_type, value, achieved_at, profiles ( display_name ), movements ( canonical_name )')
+        .select('id, profile_id, movement_id, record_type, value, achieved_at, profiles ( display_name, avatar_url ), movements ( canonical_name )')
         .order('value', { ascending: false });
       if (error) {
         setLoadState('error');
@@ -107,7 +108,7 @@ export default function PrsPage() {
             <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {list.map((r) => (
                 <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span>{r.profiles?.display_name ?? 'Athlete'} <span className="hw-pill hw-pill-outline">{r.record_type}</span></span>
+                  <span><Avatar name={r.profiles?.display_name ?? 'Athlete'} url={r.profiles?.avatar_url ?? null} />{r.profiles?.display_name ?? 'Athlete'} <span className="hw-pill hw-pill-outline">{r.record_type}</span></span>
                   <span style={{ fontWeight: 700 }}>
                     {r.value} — {new Date(r.achieved_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </span>
@@ -120,4 +121,3 @@ export default function PrsPage() {
     </main>
   );
 }
-
