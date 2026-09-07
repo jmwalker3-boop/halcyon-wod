@@ -3,12 +3,17 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
+// Targets a workout_log directly (not a post) -- a shaka should be
+// available on every leaderboard entry, and ScoreForm's comment is
+// optional, so keying this off `posts` left entries with no comment with
+// no way to get a like at all (John's report, 2026-09-07, found testing
+// with two accounts side by side).
 export default function LikeButton({
-  postId,
+  workoutLogId,
   initialLiked,
   initialCount,
 }: {
-  postId: string;
+  workoutLogId: string;
   initialLiked: boolean;
   initialCount: number;
 }) {
@@ -29,11 +34,11 @@ export default function LikeButton({
     }
 
     if (liked) {
-      await supabase.from('reactions').delete().eq('post_id', postId).eq('profile_id', user.id).eq('type', 'like');
+      await supabase.from('reactions').delete().eq('workout_log_id', workoutLogId).eq('profile_id', user.id).eq('type', 'like');
       setLiked(false);
       setCount((c) => Math.max(0, c - 1));
     } else {
-      await supabase.from('reactions').insert({ post_id: postId, profile_id: user.id, type: 'like' });
+      await supabase.from('reactions').insert({ workout_log_id: workoutLogId, profile_id: user.id, type: 'like' });
       setLiked(true);
       setCount((c) => c + 1);
     }
