@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import LikeButton from '@/components/LikeButton';
+import Avatar from '@/components/Avatar';
 
 // One WOD's scores across everyone (workout_logs: enrolled read, added
 // 2026-09-07 alongside this page -- previously an athlete could only read
@@ -27,7 +28,7 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ wo
 
   const { data: logs } = await supabase
     .from('workout_logs')
-    .select('id, profile_id, result_type, result_value, rpe, performed_at, movement_id, profiles ( display_name ), movements ( canonical_name )')
+    .select('id, profile_id, result_type, result_value, rpe, performed_at, movement_id, profiles ( display_name, avatar_url ), movements ( canonical_name )')
     .eq('workout_id', workoutId)
     .order('performed_at', { ascending: true });
 
@@ -106,7 +107,7 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ wo
               {timeEntries.map((e, i) => (
                 <div key={e.id}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-                    <span><strong>#{i + 1}</strong> {e.profiles?.display_name ?? 'Athlete'}</span>
+                    <span><strong>#{i + 1}</strong> <Avatar name={e.profiles?.display_name ?? 'Athlete'} url={e.profiles?.avatar_url ?? null} />{e.profiles?.display_name ?? 'Athlete'}</span>
                     <span style={{ fontWeight: 700 }}>{formatTime(e.result_value.seconds)}{e.rpe ? ` · RPE ${e.rpe}` : ''}</span>
                   </div>
                   {renderComment(e.id)}
@@ -123,7 +124,7 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ wo
               {roundsRepsEntries.map((e, i) => (
                 <div key={e.id}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-                    <span><strong>#{i + 1}</strong> {e.profiles?.display_name ?? 'Athlete'}</span>
+                    <span><strong>#{i + 1}</strong> <Avatar name={e.profiles?.display_name ?? 'Athlete'} url={e.profiles?.avatar_url ?? null} />{e.profiles?.display_name ?? 'Athlete'}</span>
                     <span style={{ fontWeight: 700 }}>
                       {e.result_value.rounds} rounds + {e.result_value.reps}{e.rpe ? ` · RPE ${e.rpe}` : ''}
                     </span>
@@ -142,7 +143,7 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ wo
               {list.map((e, i) => (
                 <div key={e.id}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-                    <span><strong>#{i + 1}</strong> {e.profiles?.display_name ?? 'Athlete'}</span>
+                    <span><strong>#{i + 1}</strong> <Avatar name={e.profiles?.display_name ?? 'Athlete'} url={e.profiles?.avatar_url ?? null} />{e.profiles?.display_name ?? 'Athlete'}</span>
                     <span style={{ fontWeight: 700 }}>
                       {e.result_value.weight} × {e.result_value.reps} × {e.result_value.sets} sets
                       {e.rpe ? ` · RPE ${e.rpe}` : ''}
