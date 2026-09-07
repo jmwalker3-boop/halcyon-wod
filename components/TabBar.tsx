@@ -40,21 +40,26 @@ function ChatIcon({ size }: { size: number }) {
 }
 
 function SkullIcon({ size }: { size: number }) {
+  // Solid fill (John's request, 2026-09-07: "check earlier drafts for the
+  // WOD skull, it was filled in black and larger") -- eyes/nose are holes
+  // punched out of the same currentColor path via fill-rule evenodd, so
+  // they show through as the badge's own background color instead of
+  // needing a second hardcoded color.
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round">
-      <path d="M12 2.5c-4.4 0-7.5 3.2-7.5 7.3 0 2.4 1 4 2.1 5.1.3.3.4.7.4 1.1v1.3c0 .6.5 1.1 1.1 1.1h1v1.5c0 .6.5 1.1 1.1 1.1h1.6v-2.2h2.4v2.2h1.6c.6 0 1.1-.5 1.1-1.1v-1.5h1c.6 0 1.1-.5 1.1-1.1v-1.3c0-.4.1-.8.4-1.1 1.1-1.1 2.1-2.7 2.1-5.1 0-4.1-3.1-7.3-7.5-7.3z" />
-      <circle cx="9.3" cy="10.5" r="1.4" fill="currentColor" stroke="none" />
-      <circle cx="14.7" cy="10.5" r="1.4" fill="currentColor" stroke="none" />
-      <path d="M11.3 13.2h1.4l-.7 1.6z" fill="currentColor" stroke="none" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" fillRule="evenodd" clipRule="evenodd">
+      <path d="M12 2.5c-4.4 0-7.5 3.2-7.5 7.3 0 2.4 1 4 2.1 5.1.3.3.4.7.4 1.1v1.3c0 .6.5 1.1 1.1 1.1h1v1.5c0 .6.5 1.1 1.1 1.1h1.6v-2.2h2.4v2.2h1.6c.6 0 1.1-.5 1.1-1.1v-1.5h1c.6 0 1.1-.5 1.1-1.1v-1.3c0-.4.1-.8.4-1.1 1.1-1.1 2.1-2.7 2.1-5.1 0-4.1-3.1-7.3-7.5-7.3zM9.3 9.1a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8zm5.4 0a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8zM11.3 13.2h1.4l-.7 1.6z" />
     </svg>
   );
 }
 
-function BicepIcon({ size }: { size: number }) {
+function BarbellIcon({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M3 14c0-2 1-3 2-3.5-.3-1.8.7-3.5 2.5-3.5.9 0 1.6.4 2 1 .2-1.1 1.2-2 2.5-2 1.7 0 3 1.3 3 3v1c1.7 0 3 1.3 3 3 0 2.2-1.8 4-4 4H9c-3.3 0-6-1.8-6-5z" />
-      <path d="M4 14v3c0 1.1.9 2 2 2h1v-2.5H6c-.6 0-1-.4-1-1z" />
+      <rect x="0.5" y="9" width="3" height="6" rx="0.5" />
+      <rect x="3.8" y="7" width="2" height="10" rx="0.5" />
+      <rect x="6" y="11" width="12" height="2" />
+      <rect x="18.2" y="7" width="2" height="10" rx="0.5" />
+      <rect x="20.5" y="9" width="3" height="6" rx="0.5" />
     </svg>
   );
 }
@@ -75,7 +80,7 @@ export default function TabBar({ boardHref }: { boardHref?: string }) {
     { key: 'board', label: 'Board', href: boardHref ?? '/board', Icon: BoardIcon },
     { key: 'chat', label: 'Chat', href: '/chat', Icon: ChatIcon },
     { key: 'wod', label: 'Wod', href: '/wod', Icon: SkullIcon },
-    { key: 'prs', label: 'PRs', href: '/prs', Icon: BicepIcon },
+    { key: 'prs', label: 'PRs', href: '/prs', Icon: BarbellIcon },
     { key: 'account', label: 'Account', href: '/account', Icon: AccountIcon },
   ];
 
@@ -134,7 +139,7 @@ export default function TabBar({ boardHref }: { boardHref?: string }) {
                 marginTop: isWod ? -16 : 0,
               }}
             >
-              <Icon size={isWod ? 24 : 16} />
+              <Icon size={isWod ? 30 : 16} />
             </span>
             <span className="hw-label" style={{ fontSize: 8, opacity: active || isWod ? 1 : 0.6 }}>
               {item.label.toUpperCase()}
