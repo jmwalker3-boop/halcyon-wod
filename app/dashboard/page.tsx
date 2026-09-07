@@ -3,8 +3,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import LogoutButton from '@/components/LogoutButton';
 import ScoreForm from '@/components/ScoreForm';
-import WodTabs from '@/components/WodTabs';
-import { SKILL_CATEGORIES } from '@/lib/equipment';
+import TabBar from '@/components/TabBar';
 import {
   normalizeEquipmentTag,
   resolveWorkoutForAthlete,
@@ -47,6 +46,41 @@ import {
 // the equipment-resolver README/architecture notes -- so every call below
 // omits prescribedLoad and 'rounded'/'needs_load_data' still can't occur
 // here, same limitation as before. What's new: 'scaled' now can.
+//
+// Hero header + streak strip + quick actions + bottom tab bar added
+// 2026-09-07 to match the "HalcyonWod Mockups" design (screen 2a/1b) --
+// John shared a screenshot and said "want the landing to look like
+// this." Streak and the weekly on-days count are real (workout_logs.performed_at),
+// not fabricated -- see computeStreak below. The mock's sticker/achievement
+// banner ("Back squat 315 lb — new sticker earned") is NOT built: that
+// needs an achievements/stickers table and detection logic that doesn't
+// exist yet, deliberately out of scope for a visual pass.
+const STREAK_COLORS = ['pink', 'mustard', 'cyan', 'violet', 'orange'] as const;
+
+function dayWeekInfo(date: string, cycle: { start_date: string; length_days: number }) {
+  const dayNumber =
+    Math.floor(
+      (new Date(`${date}T00:00:00`).getTime() - new Date(`${cycle.start_date}T00:00:00`).getTime()) / 86400000,
+    ) + 1;
+  const totalWeeks = Math.ceil((cycle.length_days ?? 0) / 7);
+  const weekNumber = Math.ceil(dayNumber / 7);
+  return { dayNumber, totalWeeks, weekNumber };
+}
+
+// Consecutive on-days ending today (or ending yesterday, if today just
+// hasn't been logged yet -- an athlete mid-morning shouldn't see their
+// streak drop to zero before they've even had a chance to train).
+function computeStreak(loggedDates: Set<string>, todayISO: string): number {
+  let streak = 0;
+  const cursor = new Date(`${todayISO}T00:00:00`);
+  if (!loggedDates.has(todayISO)) cursor.setDate(cursor.getDate() - 1);
+  while (loggedDates.has(cursor.toISOString().slice(0, 10))) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient();
   const {
@@ -92,6 +126,7 @@ export default async function DashboardPage() {
     { data: allMovementRows },
     { data: movementScaleRows },
     { data: equipmentSubstituteRows },
+    { data: logDateRows },
   ] = await Promise.all([
     supabase.from('profile_equipment').select('equipment_tag').eq('profile_id', user.id),
     supabase.from('profile_equipment_loads').select('equipment_tag, load_value, unit, quantity').eq('profile_id', user.id),
@@ -99,6 +134,13 @@ export default async function DashboardPage() {
     supabase.from('movements').select('id, canonical_name, equipment'),
     supabase.from('movement_scales').select('movement_id, tier, scale_movement_id'),
     supabase.from('movement_equipment_substitutes').select('movement_id, substitute_id'),
+    // Last 60 days of this athlete's own logged dates -- enough to cover any
+    // realistic streak and the 7-day strip, without scanning the whole table.
+    supabase
+      .from('workout_logs')
+      .select('performed_at')
+      .eq('profile_id', user.id)
+      .gte('performed_at', new Date(Date.now() - 60 * 86400000).toISOString()),
   ]);
 
   // Distinct from "recorded equipment that doesn't cover this movement" --
@@ -167,28 +209,6 @@ export default async function DashboardPage() {
     return resolveWorkoutForAthlete(toResolve, owned, rx);
   }
 
-  // The leaderboard's silo filter/badge (mockup 2c) needs one tier per
-  // logged score, not the resolver's per-movement scaling detail -- this
-  // is the worst (most-scaled) of the athlete's own recorded skill levels
-  // across whatever skill categories this workout's movements actually
-  // touch. A workout with no gymnastics skill movements at all (e.g. a
-  // pure barbell/metcon day) has no relevant categories, so it's 'rx' by
-  // definition, not because the athlete happens to be Rx everywhere.
-  function tierForSlot(slot: any): AthleteSkillLevel {
-    const categories = new Set<SkillCategory>(
-      (slot.workouts?.workout_movements ?? [])
-        .map((wm: any) => wm.movements?.skill_category)
-        .filter(Boolean),
-    );
-    let worst: AthleteSkillLevel = 'rx';
-    for (const category of categories) {
-      const level = skillLevels.get(category) ?? 'rx';
-      if (level === 'beginner') return 'beginner';
-      if (level === 'intermediate') worst = 'intermediate';
-    }
-    return worst;
-  }
-
   // Admin-only, not "coach or admin" -- John's own call (2026-09-05): a
   // future assistant coach should be able to have an account without
   // getting Coach Deck / internal-programming-jargon visibility, so that
@@ -220,247 +240,287 @@ export default async function DashboardPage() {
     return d.toISOString().slice(0, 10);
   });
 
-  // "STREAK · N ON-DAYS" (mockup 2a) -- consecutive calendar days with at
-  // least one workout_log, counted backward from today. If nothing's
-  // logged yet today, the streak still counts through yesterday (an
-  // athlete's streak shouldn't drop to zero every morning before they've
-  // had a chance to log) but breaks the moment a day is actually skipped.
-  // 60 rows is generous headroom for real gaps between logged days while
-  // staying a single small query.
-  const { data: recentLogDateRows } = await supabase
-    .from('workout_logs')
-    .select('performed_at')
-    .eq('profile_id', user.id)
-    .order('performed_at', { ascending: false })
-    .limit(60);
-  const loggedDates = new Set((recentLogDateRows ?? []).map((r: any) => String(r.performed_at).slice(0, 10)));
-  let streakDays = 0;
-  {
-    const cursor = new Date(`${today}T00:00:00`);
-    if (!loggedDates.has(today)) cursor.setDate(cursor.getDate() - 1);
-    while (loggedDates.has(cursor.toISOString().slice(0, 10))) {
-      streakDays += 1;
-      cursor.setDate(cursor.getDate() - 1);
-    }
-  }
+  const loggedDates = new Set((logDateRows ?? []).map((r: any) => new Date(r.performed_at).toISOString().slice(0, 10)));
+  const streak = computeStreak(loggedDates, today);
+  const last7Dates = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(`${today}T00:00:00`);
+    d.setDate(d.getDate() - (6 - i));
+    return d.toISOString().slice(0, 10);
+  });
 
-  // Recent PR banner (mockup 2a's "new sticker earned" card) -- real data,
-  // just without the sticker-sheet mechanic itself (no UI for that exists
-  // anywhere yet). Only shown if it actually happened this week, so this
-  // doesn't turn into a permanent fixture pointing at an old lift.
-  const { data: recentPr } = await supabase
-    .from('personal_records')
-    .select('value, record_type, achieved_at, movements ( canonical_name )')
-    .eq('profile_id', user.id)
-    .order('achieved_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const recentPrIsThisWeek =
-    recentPr != null && Date.now() - new Date(recentPr.achieved_at).getTime() < 7 * 86400000;
+  // Monday-start week, for "N on-days logged this week."
+  const weekStart = new Date(`${today}T00:00:00`);
+  const isoDow = weekStart.getDay() === 0 ? 7 : weekStart.getDay();
+  weekStart.setDate(weekStart.getDate() - (isoDow - 1));
+  const onDaysThisWeek = [...loggedDates].filter((d) => d >= weekStart.toISOString().slice(0, 10) && d <= today).length;
 
-  // "GYM AVERAGE" (mockup 2b) -- average of everyone's 'time' scores on
-  // today's specific workout instance, same query shape the leaderboard
-  // itself runs. Collected once for every enrollment's today-slot rather
-  // than per-render, since a given workout_id only needs this once.
-  const todayWorkoutIds = new Set<string>();
-  for (const enrollment of (enrollments ?? []) as any[]) {
-    for (const cycle of enrollment.programs?.program_cycles ?? []) {
-      for (const slot of cycle.calendar_slots ?? []) {
-        if (slot.date === today && slot.workouts) todayWorkoutIds.add(slot.workouts.id);
-      }
-    }
-  }
-  const { data: gymTimeRows } = todayWorkoutIds.size
-    ? await supabase.from('workout_logs').select('workout_id, result_value').in('workout_id', [...todayWorkoutIds]).eq('result_type', 'time')
-    : { data: [] as any[] };
-  const gymAverageByWorkout = new Map<string, { seconds: number; count: number }>();
-  for (const workoutId of todayWorkoutIds) {
-    const seconds = (gymTimeRows ?? [])
-      .filter((r: any) => r.workout_id === workoutId)
-      .map((r: any) => r.result_value.seconds as number);
-    if (seconds.length) {
-      gymAverageByWorkout.set(workoutId, { seconds: seconds.reduce((a, b) => a + b, 0) / seconds.length, count: seconds.length });
-    }
-  }
-
-  function formatSeconds(seconds: number) {
-    const m = Math.floor(seconds / 60);
-    const s = Math.round(seconds % 60);
-    return `${m}:${String(s).padStart(2, '0')}`;
-  }
-
-  const skillLabelByCategory = new Map(SKILL_CATEGORIES.map((c) => [c.key, c.label]));
-
-  // One movement's card in the "My Rx" tab (mockup 2b) -- built straight
-  // from the resolver's own ResolvedMovement, so the status shown here can
-  // never disagree with what resolveWorkoutForAthlete actually decided.
-  function renderMovementCard(r: ResolvedMovement) {
-    const badge =
-      r.status === 'needs_substitution' || r.status === 'needs_load_data'
-        ? { label: '?', bg: 'var(--hw-pink)' }
-        : r.status === 'scaled'
-          ? { label: 'SCALED', bg: 'var(--hw-mustard)' }
-          : { label: 'RX', bg: 'var(--hw-cyan)' };
-
-    return (
-      <div key={r.prescribedName} className="hw-card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'stretch' }}>
-          <div style={{ flex: 1, padding: '12px 14px', minWidth: 0 }}>
-            <div className="hw-h3" style={{ fontSize: 16 }}>{r.displayName.toUpperCase()}</div>
-            {r.status === 'scaled' ? (
-              <div className="hw-muted" style={{ font: '700 11px/1.6 "Space Mono", monospace' }}>
-                WAS: {r.prescribedName.toUpperCase()}
-              </div>
-            ) : r.status === 'needs_substitution' || r.status === 'needs_load_data' ? (
-              <div style={{ font: '700 11px/1.6 "Space Mono", monospace', color: 'var(--hw-pink-deep)' }}>
-                {r.status === 'needs_load_data'
-                  ? 'NO WEIGHT RECORDED FOR THIS'
-                  : `NOT ON YOUR LIST: ${r.missingEquipment.join(', ').toUpperCase()}`}
-              </div>
-            ) : (
-              <div className="hw-muted" style={{ font: '700 11px/1.6 "Space Mono", monospace' }}>
-                {r.load ? `${r.load.value} ${r.load.unit.toUpperCase()}` : 'BODYWEIGHT'}
-              </div>
-            )}
-          </div>
-          <div
-            style={{
-              width: 56,
-              flex: 'none',
-              background: 'var(--hw-ink)',
-              color: badge.bg,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center',
-              font: '700 10px/1.2 "Space Mono", monospace',
-            }}
-          >
-            {badge.label}
-          </div>
-        </div>
-        {r.status === 'scaled' && (
-          <div style={{ borderTop: '3px dashed var(--hw-ink)', opacity: 0.7, padding: '10px 14px', font: '400 11px/1.5 "Space Grotesk", sans-serif' }}>
-            {r.scaledBecause === 'skill_level' ? (
-              <>Your skill level here is <strong>{skillLevelForMovement(r) ?? 'scaled'}</strong>.</>
-            ) : (
-              'Substituted based on the gear you have on file.'
-            )}
-          </div>
-        )}
-        {r.machineScaleOptions && r.machineScaleOptions.length > 0 && (
-          <div style={{ borderTop: '3px dashed var(--hw-ink)', padding: '12px 14px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {r.machineScaleOptions.map((o) => (
-              <span key={o.machine} className="hw-pill hw-pill-dark">
-                {o.unisex ? `${o.value}${o.unit === 'cal' ? ' CAL' : 'M'}` : `${o.male}/${o.female}${o.unit === 'cal' ? ' CAL' : 'M'}`} {o.machine.toUpperCase()}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Best-effort label for the "your X level is Y" note under a
-  // skill-scaled movement -- the resolver doesn't carry which category it
-  // matched on, so this re-derives it the same way tierForSlot does: the
-  // worst skill level among skill categories on this workout that aren't
-  // already Rx. That's an approximation (a workout with two non-Rx skill
-  // movements would show the same note under both), acceptable since the
-  // note is illustrative, not load-bearing the way the badge itself is.
-  function skillLevelForMovement(_r: ResolvedMovement): string | null {
-    for (const [category, level] of skillLevels) {
-      if (level !== 'rx') return `${skillLabelByCategory.get(category) ?? category} · ${level}`;
-    }
-    return null;
-  }
+  const firstEnrollment = enrollments?.[0] as any;
+  const firstProgram = firstEnrollment?.programs;
+  const firstAllEntries = (firstProgram?.program_cycles ?? []).flatMap((cycle: any) =>
+    (cycle.calendar_slots ?? []).map((slot: any) => ({ slot, cycle })),
+  );
+  const todayEntry = firstAllEntries.find((e: any) => e.slot.date === today);
+  const todayResolved = todayEntry?.slot.workouts ? resolveSlotEquipment(todayEntry.slot) : [];
+  const todayScaled = todayResolved.filter((r) => r.status === 'scaled');
+  const todayGaps = todayResolved.filter((r) => r.status === 'needs_substitution');
+  const todaySubCount = todayScaled.length + todayGaps.length;
+  const todayDayWeek = todayEntry ? dayWeekInfo(today, todayEntry.cycle) : null;
+  const boardHref = todayEntry?.slot.workouts ? `/leaderboard/${todayEntry.slot.workouts.id}` : undefined;
 
   return (
     <main className="hw-shell">
-      <div className="hw-wrap">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link href="/dashboard" style={{ flex: 'none', lineHeight: 0 }}>
-            <img src="/logo-dot.png" alt="HalcyonWod" style={{ width: 52, height: 52, objectFit: 'contain' }} />
-          </Link>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="hw-h1" style={{ fontSize: 22 }}>{todayLabel}</div>
-          </div>
-          {streakDays > 0 && (
-            <div
-              title={`${streakDays} on-day streak`}
-              style={{
-                width: 44,
-                height: 44,
-                flex: 'none',
-                borderRadius: '50%',
-                border: '3px solid var(--hw-ink)',
-                background: 'var(--hw-mustard)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                font: '700 13px/1 "Space Mono", monospace',
-              }}
-            >
-              {streakDays}
-            </div>
-          )}
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+      <div className="hw-wrap" style={{ paddingBottom: 110 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {/* Movement Library (app/movements) deliberately unlinked here, 2026-09-06 --
               John's call: it doesn't need to be athlete-facing, possibly doesn't need to
               exist at all. Route itself left in place (harmless, unreachable without a
               direct link) rather than deleted, since he hasn't decided that part yet. */}
           {isAdmin && <Link href="/coach" className="hw-link-back">Coach Deck</Link>}
           {isAdmin && <Link href="/admin" className="hw-link-back">Admin</Link>}
-          <Link href="/prs" className="hw-link-back">PRs</Link>
           <Link href="/chat" className="hw-link-back">Chat</Link>
           <Link href="/billing" className="hw-link-back">Billing</Link>
-          <Link href="/account" className="hw-link-back">Account</Link>
           <LogoutButton />
         </div>
 
-        <p className="hw-h2" style={{ fontSize: 17, marginTop: 16 }}>
-          HEY{profile?.display_name ? ` ${profile.display_name.toUpperCase()}` : ''} — YOU&apos;RE UP.
-        </p>
-        {streakDays > 0 && (
-          <p className="hw-lede" style={{ fontSize: 13 }}>
-            Streak · {streakDays} on-day{streakDays === 1 ? '' : 's'}.
-          </p>
-        )}
-        {isAdmin && <p className="hw-pill hw-pill-outline" style={{ marginTop: 4 }}>{profile?.role}</p>}
-
-        {recentPrIsThisWeek && recentPr && (
-          <div className="hw-card" style={{ marginTop: 12, background: 'var(--hw-mustard)', display: 'flex', gap: 12, alignItems: 'center' }}>
-            <div
-              style={{
-                width: 44,
-                height: 44,
-                flex: 'none',
-                borderRadius: '50%',
-                border: '3px solid var(--hw-ink)',
-                background: 'var(--hw-paper)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 20,
-              }}
-            >
-              🏆
-            </div>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>
-              {(recentPr as any).movements?.canonical_name ?? 'New lift'} {recentPr.value} — new PR!
-            </p>
+        {/* Hero header -- logo top-left, date/day-week/track name centered,
+            streak count top-right. Matches the mockup's 2a/1b "Home" screen. */}
+        <div style={{ position: 'relative', marginTop: 12, textAlign: 'center' }}>
+          <Link href="/dashboard" style={{ position: 'absolute', left: 0, top: 0, lineHeight: 0 }}>
+            <img src="/logo-dot.png" alt="HalcyonWod" style={{ width: 44, height: 44, objectFit: 'contain' }} />
+          </Link>
+          <div
+            style={{
+              position: 'absolute',
+              right: 0,
+              top: 0,
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
+              background: 'var(--hw-mustard)',
+              border: '3px solid var(--hw-ink)',
+              boxShadow: '3px 3px 0 var(--hw-ink)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              font: '700 16px/1 "Space Mono", monospace',
+            }}
+            title="Current streak, on-days"
+          >
+            {streak}
           </div>
+          <div className="hw-h1" style={{ fontSize: 22, margin: '4px 0 0' }}>{todayLabel}</div>
+          {todayDayWeek && (
+            <span className="hw-pill hw-pill-dark" style={{ marginTop: 8 }}>
+              DAY {todayDayWeek.dayNumber}
+              {todayDayWeek.totalWeeks ? ` · WEEK ${todayDayWeek.weekNumber} OF ${todayDayWeek.totalWeeks}` : ''}
+            </span>
+          )}
+          {firstProgram?.name && (
+            <div className="hw-label" style={{ marginTop: 6, opacity: 0.7 }}>{firstProgram.name.toUpperCase()}</div>
+          )}
+        </div>
+
+        <p className="hw-lede" style={{ fontSize: 15, fontWeight: 700, textAlign: 'center' }}>
+          Hey{profile?.display_name ? ` ${profile.display_name}` : ''} — you&apos;re up.
+        </p>
+        <p className="hw-muted" style={{ fontSize: 13, textAlign: 'center', marginTop: 4 }}>
+          {onDaysThisWeek} on-day{onDaysThisWeek === 1 ? '' : 's'} logged this week. No excuses, chief.
+        </p>
+        {isAdmin && (
+          <p className="hw-pill hw-pill-outline" style={{ marginTop: 8, display: 'block', textAlign: 'center' }}>
+            {profile?.role}
+          </p>
         )}
 
         {(!enrollments || enrollments.length === 0) && (
           <div className="hw-card" style={{ marginTop: 16 }}>
             <p style={{ margin: 0 }}>Not enrolled in a program yet.</p>
-            <Link href="/onboarding" className="hw-btn hw-btn-dark" style={{ marginTop: 12, fontSize: 14, padding: 12 }}>
-              Get set up →
+          </div>
+        )}
+
+        {/* Today's WOD hero card -- mustard header, dark body, Bungee title,
+            sub-count/Rx pill, "Open the board" CTA. Everything on it is real
+            (title/raw_text from workouts, sub count from the resolver above) --
+            the mock's "FOR TIME" format pill was dropped since the schema
+            doesn't carry a structured workout format, only raw_text. */}
+        {todayEntry?.slot.workouts && (
+          <div className="hw-card" style={{ marginTop: 16, padding: 0, overflow: 'hidden' }}>
+            <div
+              style={{
+                padding: '12px 16px',
+                borderBottom: '4px solid var(--hw-ink)',
+                background: 'var(--hw-mustard)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+              }}
+            >
+              <span className="hw-label">Today&apos;s WOD</span>
+              {todayEntry.slot.workouts.is_benchmark && <span className="hw-pill hw-pill-dark">Benchmark</span>}
+            </div>
+            <div style={{ padding: '16px', background: 'var(--hw-navy)' }}>
+              {todayEntry.slot.workouts.title && (
+                <div
+                  style={{
+                    font: '400 32px/1.05 "Bungee", "Space Grotesk", sans-serif',
+                    color: 'var(--hw-mustard)',
+                    textShadow: '3px 3px 0 var(--hw-pink)',
+                  }}
+                >
+                  {todayEntry.slot.workouts.title}
+                </div>
+              )}
+              <pre
+                style={{
+                  whiteSpace: 'pre-wrap',
+                  font: '700 12px/1.7 "Space Mono", monospace',
+                  color: 'var(--hw-cyan)',
+                  margin: '12px 0 0',
+                }}
+              >
+                {todayEntry.slot.workouts.raw_text ?? '(no content yet)'}
+              </pre>
+              <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {hasRecordedEquipment && todaySubCount > 0 && (
+                  <span className="hw-pill hw-pill-pink">
+                    {todaySubCount} sub{todaySubCount === 1 ? '' : 's'} for you
+                  </span>
+                )}
+                {hasRecordedEquipment && todaySubCount === 0 && todayResolved.length > 0 && (
+                  <span className="hw-pill hw-pill-cyan">Rx as written</span>
+                )}
+              </div>
+            </div>
+            {boardHref && (
+              <Link href={boardHref} className="hw-btn hw-btn-mustard" style={{ borderRadius: 0, borderTop: 'none' }}>
+                Open the board →
+              </Link>
+            )}
+          </div>
+        )}
+
+        {todayEntry?.slot.workouts && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+            <a
+              href="#today-score-form"
+              className="hw-card"
+              style={{ textDecoration: 'none', color: 'var(--hw-ink)', display: 'block' }}
+            >
+              <span style={{ fontSize: 22 }}>●</span>
+              <div className="hw-h3" style={{ marginTop: 10 }}>Log a score</div>
+            </a>
+            {boardHref && (
+              <Link
+                href={boardHref}
+                className="hw-card"
+                style={{ textDecoration: 'none', background: 'var(--hw-pink)', color: 'var(--hw-paper)', display: 'block' }}
+              >
+                <span style={{ fontSize: 22 }}>◆</span>
+                <div className="hw-h3" style={{ marginTop: 10, color: 'var(--hw-paper)' }}>The board</div>
+              </Link>
+            )}
+          </div>
+        )}
+
+        {/* Streak strip -- last 7 calendar days, filled square if this athlete
+            logged a score that day, dashed/empty otherwise. Colors cycle
+            through the brand palette rather than meaning anything per-slot. */}
+        <div className="hw-card" style={{ marginTop: 12 }}>
+          <div className="hw-eyebrow-row">
+            <span className="hw-label">Streak · {streak} on-day{streak === 1 ? '' : 's'}</span>
+            {streak > 0 && <span className="hw-label" style={{ color: 'var(--hw-pink-deep)' }}>Don&apos;t blow it</span>}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            {last7Dates.map((d, i) => {
+              const on = loggedDates.has(d);
+              return (
+                <div
+                  key={d}
+                  style={{
+                    flex: 1,
+                    aspectRatio: '1',
+                    borderRadius: 8,
+                    border: on ? '3px solid var(--hw-ink)' : '2px dashed var(--hw-ink)',
+                    background: on ? `var(--hw-${STREAK_COLORS[i % STREAK_COLORS.length]})` : 'transparent',
+                    opacity: on ? 1 : 0.4,
+                  }}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        {todayEntry?.slot.workouts && (
+          <div id="today-score-form" style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <ScoreForm
+              workoutId={todayEntry.slot.workouts.id}
+              calendarSlotId={todayEntry.slot.id}
+              movements={allMovementRows ?? []}
+            />
+          </div>
+        )}
+
+        {todayEntry?.slot.workouts && !hasRecordedEquipment && (
+          <div className="hw-card" style={{ marginTop: 12, background: 'var(--hw-violet)', color: 'var(--hw-paper)' }}>
+            <p style={{ margin: 0, fontSize: 13 }}>
+              Add your equipment and skill level to see your actual Rx for this workout.
+            </p>
+            <Link href="/account" className="hw-btn hw-btn-mustard" style={{ marginTop: 12, fontSize: 14, padding: 12 }}>
+              Set up your gear →
             </Link>
           </div>
+        )}
+
+        {hasRecordedEquipment && todayScaled.length > 0 && (
+          <div className="hw-card" style={{ marginTop: 12 }}>
+            <span className="hw-label" style={{ color: 'var(--hw-violet)' }}>Your Rx</span>
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {todayScaled.map((r) => (
+                <div key={r.prescribedName} style={{ fontSize: 13 }}>
+                  {r.prescribedName} → <strong>{r.displayName}</strong>{' '}
+                  <span className="hw-pill hw-pill-mustard" style={{ marginLeft: 4 }}>
+                    {r.scaledBecause === 'skill_level' ? 'skill' : 'equip sub'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {hasRecordedEquipment && todayGaps.length > 0 && (
+          <div className="hw-card" style={{ marginTop: 12 }}>
+            <span className="hw-label" style={{ color: 'var(--hw-pink-deep)' }}>Needs a manual scale</span>
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {todayGaps.map((g) => (
+                <div key={g.prescribedName} style={{ fontSize: 13 }}>
+                  <div>
+                    {g.prescribedName} — you don&apos;t have: {g.missingEquipment.join(', ')}
+                  </div>
+                  {g.machineScaleOptions && (
+                    <div className="hw-muted" style={{ marginTop: 4 }}>
+                      Try: {g.machineScaleOptions
+                        .map((o) => {
+                          const suffix = o.unit === 'cal' ? ' Cal' : 'm';
+                          return o.unisex
+                            ? `${o.value}${suffix} ${o.machine}`
+                            : `${o.male}/${o.female}${suffix} ${o.machine} (M/F)`;
+                        })
+                        .join(' · ')}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Admin-only day_type/target_modalities peek for today, same gate as
+            the rest-of-week loop below. */}
+        {isAdmin && todayEntry && (
+          <p className="hw-muted" style={{ fontSize: 12, marginTop: 12 }}>
+            {todayEntry.slot.day_type} · {todayEntry.slot.target_modalities?.join('/') || 'no modality target'}
+          </p>
         )}
 
         {enrollments?.map((enrollment: any) => {
@@ -469,22 +529,20 @@ export default async function DashboardPage() {
             (cycle.calendar_slots ?? []).map((slot: any) => ({ slot, cycle })),
           );
           const byDate = new Map<string, any>(allEntries.map((e: any) => [e.slot.date, e]));
-          const weekEntries = weekDates.map((date) => ({ date, entry: byDate.get(date) }));
+          // Skip today -- it already has its own hero treatment above.
+          const weekEntries = weekDates.filter((d) => d !== today).map((date) => ({ date, entry: byDate.get(date) }));
 
           return (
-            <div key={enrollment.program_id} style={{ marginTop: 16 }}>
+            <div key={enrollment.program_id} style={{ marginTop: 20 }}>
               <div className="hw-eyebrow-row">
-                <span className="hw-h3">{program?.name}</span>
-                <span className="hw-pill hw-pill-outline">Next 7 days</span>
+                <span className="hw-h3">Coming up</span>
+                <span className="hw-pill hw-pill-outline">Next 6 days</span>
               </div>
 
               {weekEntries.map(({ date, entry }) => {
-                const isToday = date === today;
-                const dateLabel = isToday
-                  ? 'TODAY'
-                  : new Date(`${date}T00:00:00`)
-                      .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-                      .toUpperCase();
+                const dateLabel = new Date(`${date}T00:00:00`)
+                  .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                  .toUpperCase();
 
                 if (!entry) {
                   return (
@@ -499,16 +557,7 @@ export default async function DashboardPage() {
                 const resolved = slot.workouts ? resolveSlotEquipment(slot) : [];
                 const scaled = resolved.filter((r) => r.status === 'scaled');
                 const gaps = resolved.filter((r) => r.status === 'needs_substitution');
-
-                // Day/week-in-cycle -- real numbers derived from the cycle's own
-                // start_date + length_days for THIS slot's date, not a fabricated
-                // counter and not always relative to today now that every day in
-                // the window renders its own card.
-                const dayNumber =
-                  Math.floor((new Date(`${date}T00:00:00`).getTime() - new Date(`${cycle.start_date}T00:00:00`).getTime()) /
-                    86400000) + 1;
-                const totalWeeks = Math.ceil((cycle.length_days ?? 0) / 7);
-                const weekNumber = Math.ceil(dayNumber / 7);
+                const { dayNumber, totalWeeks, weekNumber } = dayWeekInfo(date, cycle);
 
                 return (
                   <div key={date} style={{ marginTop: 10 }}>
@@ -528,258 +577,149 @@ export default async function DashboardPage() {
                       </p>
                     )}
 
-                    {!isToday ? (
-                      <>
-                        {slot.workouts ? (
-                          <div className="hw-card" style={{ marginTop: 10, padding: 0, overflow: 'hidden' }}>
-                            <div
-                              style={{
-                                padding: '12px 16px',
-                                borderBottom: '4px solid var(--hw-ink)',
-                                background: 'var(--hw-mustard)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                gap: 8,
-                              }}
-                            >
-                              <span className="hw-label">WOD</span>
-                              {slot.workouts.is_benchmark && <span className="hw-pill hw-pill-dark">Benchmark</span>}
-                            </div>
-                            <div style={{ padding: '16px' }}>
-                              {slot.workouts.title && <div className="hw-h2">{slot.workouts.title}</div>}
-                              <pre
-                                style={{
-                                  whiteSpace: 'pre-wrap',
-                                  font: '700 12px/1.7 "Space Mono", monospace',
-                                  color: 'var(--hw-ink)',
-                                  margin: '10px 0 0',
-                                }}
-                              >
-                                {slot.workouts.raw_text ?? '(no content yet)'}
-                              </pre>
-                              {/* Athlete-facing Notes section (John's request, 2026-09-06) --
-                                  every WOD gets this when the coach has written either field in
-                                  Coach Deck; hidden entirely when both are empty rather than
-                                  showing an empty "Notes" header. Deliberately separate from
-                                  calendar_slots.override_reason, which is an internal
-                                  doctrine-exception reason, not athlete-facing. */}
-                              {(slot.workouts.coach_notes || slot.workouts.scaling_notes) && (
-                                <div
-                                  style={{
-                                    marginTop: 14,
-                                    paddingTop: 12,
-                                    borderTop: '2px solid var(--hw-ink)',
-                                  }}
-                                >
-                                  <span className="hw-label" style={{ color: 'var(--hw-violet)' }}>Notes</span>
-                                  {slot.workouts.coach_notes && (
-                                    <p style={{ fontSize: 13, margin: '8px 0 0' }}>{slot.workouts.coach_notes}</p>
-                                  )}
-                                  {slot.workouts.scaling_notes && (
-                                    <p style={{ fontSize: 13, margin: '8px 0 0' }}>
-                                      <strong>Scaling: </strong>
-                                      {slot.workouts.scaling_notes}
-                                    </p>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <p className="hw-muted" style={{ marginTop: 10 }}>Not generated yet.</p>
-                        )}
-
-                        {slot.workouts && (
-                          <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                            <ScoreForm
-                              workoutId={slot.workouts.id}
-                              calendarSlotId={slot.id}
-                              movements={allMovementRows ?? []}
-                              tier={tierForSlot(slot)}
-                            />
-                            <Link href={`/leaderboard/${slot.workouts.id}`} className="hw-link-back" style={{ marginTop: 10 }}>
-                              Leaderboard →
-                            </Link>
-                          </div>
-                        )}
-
-                        {slot.workouts && !hasRecordedEquipment && (
-                          <div className="hw-card" style={{ marginTop: 10, background: 'var(--hw-violet)', color: 'var(--hw-paper)' }}>
-                            <p style={{ margin: 0, fontSize: 13 }}>
-                              Add your equipment and skill level to see your actual Rx for this workout.
-                            </p>
-                            <Link href="/account" className="hw-btn hw-btn-mustard" style={{ marginTop: 12, fontSize: 14, padding: 12 }}>
-                              Set up your gear →
-                            </Link>
-                          </div>
-                        )}
-
-                        {hasRecordedEquipment && scaled.length > 0 && (
-                          <div className="hw-card" style={{ marginTop: 10 }}>
-                            <span className="hw-label" style={{ color: 'var(--hw-violet)' }}>Your Rx</span>
-                            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                              {scaled.map((r) => (
-                                <div key={r.prescribedName} style={{ fontSize: 13 }}>
-                                  {r.prescribedName} → <strong>{r.displayName}</strong>{' '}
-                                  <span className="hw-pill hw-pill-mustard" style={{ marginLeft: 4 }}>
-                                    {r.scaledBecause === 'skill_level' ? 'skill' : 'equip sub'}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {hasRecordedEquipment && gaps.length > 0 && (
-                          <div className="hw-card" style={{ marginTop: 10 }}>
-                            <span className="hw-label" style={{ color: 'var(--hw-pink-deep)' }}>Needs a manual scale</span>
-                            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                              {gaps.map((g) => (
-                                <div key={g.prescribedName} style={{ fontSize: 13 }}>
-                                  <div>
-                                    {g.prescribedName} — you don&apos;t have: {g.missingEquipment.join(', ')}
-                                  </div>
-                                  {g.machineScaleOptions && (
-                                    <div className="hw-muted" style={{ marginTop: 4 }}>
-                                      Try: {g.machineScaleOptions
-                                        .map((o) => {
-                                          const suffix = o.unit === 'cal' ? ' Cal' : 'm';
-                                          return o.unisex
-                                            ? `${o.value}${suffix} ${o.machine}`
-                                            : `${o.male}/${o.female}${suffix} ${o.machine} (M/F)`;
-                                        })
-                                        .join(' · ')}
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {hasRecordedEquipment && scaled.length === 0 && gaps.length === 0 && resolved.length > 0 && (
-                          <div className="hw-pill hw-pill-cyan" style={{ marginTop: 10 }}>
-                            ✓ Rx as written — you have the gear and skill level for this one.
-                          </div>
-                        )}
-                      </>
-                    ) : slot.workouts ? (
-                      // 2b's "hero" treatment -- today's WOD only. Navy card, big
-                      // Bungee title, AS WRITTEN/MY RX toggle over the same
-                      // resolver output the other days summarize more tersely,
-                      // stats, and the coach's note promoted out of "Notes" into
-                      // its own dark card.
-                      <div style={{ marginTop: 10 }}>
-                        <div className="hw-card-dark" style={{ padding: 0, overflow: 'hidden' }}>
-                          <div
+                    {slot.workouts ? (
+                      <div className="hw-card" style={{ marginTop: 10, padding: 0, overflow: 'hidden' }}>
+                        <div
+                          style={{
+                            padding: '12px 16px',
+                            borderBottom: '4px solid var(--hw-ink)',
+                            background: 'var(--hw-mustard)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 8,
+                          }}
+                        >
+                          <span className="hw-label">WOD</span>
+                          {slot.workouts.is_benchmark && <span className="hw-pill hw-pill-dark">Benchmark</span>}
+                        </div>
+                        <div style={{ padding: '16px' }}>
+                          {slot.workouts.title && <div className="hw-h2">{slot.workouts.title}</div>}
+                          <pre
                             style={{
-                              padding: '12px 16px',
-                              borderBottom: '4px solid var(--hw-ink)',
-                              background: 'var(--hw-mustard)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              gap: 8,
+                              whiteSpace: 'pre-wrap',
+                              font: '700 12px/1.7 "Space Mono", monospace',
+                              color: 'var(--hw-ink)',
+                              margin: '10px 0 0',
                             }}
                           >
-                            <span className="hw-label" style={{ color: 'var(--hw-ink)' }}>TODAY&apos;S WOD</span>
-                            {slot.workouts.is_benchmark && <span className="hw-pill hw-pill-dark">Benchmark</span>}
-                          </div>
-                          <div style={{ padding: '18px 16px' }}>
-                            <div className="hw-h1" style={{ fontSize: 30, textShadow: '3px 3px 0 var(--hw-pink)' }}>
-                              {slot.workouts.title ?? 'TODAY’S WOD'}
+                            {slot.workouts.raw_text ?? '(no content yet)'}
+                          </pre>
+                          {/* Athlete-facing Notes section (John's request, 2026-09-06) --
+                              every WOD gets this when the coach has written either field in
+                              Coach Deck; hidden entirely when both are empty rather than
+                              showing an empty "Notes" header. Deliberately separate from
+                              calendar_slots.override_reason, which is an internal
+                              doctrine-exception reason, not athlete-facing. */}
+                          {(slot.workouts.coach_notes || slot.workouts.scaling_notes) && (
+                            <div
+                              style={{
+                                marginTop: 14,
+                                paddingTop: 12,
+                                borderTop: '2px solid var(--hw-ink)',
+                              }}
+                            >
+                              <span className="hw-label" style={{ color: 'var(--hw-violet)' }}>Notes</span>
+                              {slot.workouts.coach_notes && (
+                                <p style={{ fontSize: 13, margin: '8px 0 0' }}>{slot.workouts.coach_notes}</p>
+                              )}
+                              {slot.workouts.scaling_notes && (
+                                <p style={{ fontSize: 13, margin: '8px 0 0' }}>
+                                  <strong>Scaling: </strong>
+                                  {slot.workouts.scaling_notes}
+                                </p>
+                              )}
                             </div>
-                            {!hasRecordedEquipment ? null : (
-                              <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-                                {gaps.length > 0 && (
-                                  <span className="hw-pill hw-pill-pink">{gaps.length} GAP{gaps.length === 1 ? '' : 'S'} FOR YOU</span>
-                                )}
-                                {scaled.length > 0 && (
-                                  <span className="hw-pill hw-pill-cyan">{scaled.length} SUB{scaled.length === 1 ? '' : 'S'} FOR YOU</span>
-                                )}
-                              </div>
-                            )}
-                          </div>
+                          )}
                         </div>
-
-                        <div style={{ marginTop: 12 }}>
-                          <WodTabs
-                            asWritten={
-                              <pre
-                                style={{
-                                  whiteSpace: 'pre-wrap',
-                                  font: '700 12px/1.7 "Space Mono", monospace',
-                                  color: 'var(--hw-ink)',
-                                  margin: 0,
-                                }}
-                              >
-                                {slot.workouts.raw_text ?? '(no content yet)'}
-                              </pre>
-                            }
-                            myRx={
-                              !hasRecordedEquipment ? (
-                                <div className="hw-card" style={{ background: 'var(--hw-violet)', color: 'var(--hw-paper)' }}>
-                                  <p style={{ margin: 0, fontSize: 13 }}>
-                                    Add your equipment and skill level to see your actual Rx for this workout.
-                                  </p>
-                                  <Link href="/account" className="hw-btn hw-btn-mustard" style={{ marginTop: 12, fontSize: 14, padding: 12 }}>
-                                    Set up your gear →
-                                  </Link>
-                                </div>
-                              ) : resolved.length === 0 ? (
-                                <p className="hw-muted">Nothing to resolve for this one.</p>
-                              ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                  {resolved.map((r) => renderMovementCard(r))}
-                                </div>
-                              )
-                            }
-                          />
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
-                          <ScoreForm
-                            workoutId={slot.workouts.id}
-                            calendarSlotId={slot.id}
-                            movements={allMovementRows ?? []}
-                            tier={tierForSlot(slot)}
-                          />
-                          <Link href={`/leaderboard/${slot.workouts.id}`} className="hw-btn hw-btn-dark" style={{ fontSize: 13, padding: 12 }}>
-                            The board →
-                          </Link>
-                        </div>
-
-                        {gymAverageByWorkout.has(slot.workouts.id) && (
-                          <div className="hw-card" style={{ marginTop: 12, background: 'var(--hw-orange)' }}>
-                            <span className="hw-label">GYM AVERAGE</span>
-                            <div style={{ font: '700 22px/1.3 "Space Mono", monospace', marginTop: 4 }}>
-                              {formatSeconds(gymAverageByWorkout.get(slot.workouts.id)!.seconds)}
-                            </div>
-                            <div style={{ font: '400 10px/1 "Space Mono", monospace' }}>
-                              {gymAverageByWorkout.get(slot.workouts.id)!.count} score
-                              {gymAverageByWorkout.get(slot.workouts.id)!.count === 1 ? '' : 's'} in
-                            </div>
-                          </div>
-                        )}
-
-                        {(slot.workouts.coach_notes || slot.workouts.scaling_notes) && (
-                          <div className="hw-card-dark" style={{ marginTop: 12 }}>
-                            <span className="hw-label" style={{ color: 'var(--hw-cyan)' }}>COACH&apos;S NOTE</span>
-                            {slot.workouts.coach_notes && (
-                              <p style={{ fontSize: 13, margin: '8px 0 0' }}>{slot.workouts.coach_notes}</p>
-                            )}
-                            {slot.workouts.scaling_notes && (
-                              <p style={{ fontSize: 13, margin: '8px 0 0' }}>
-                                <strong>Scaling: </strong>
-                                {slot.workouts.scaling_notes}
-                              </p>
-                            )}
-                          </div>
-                        )}
                       </div>
                     ) : (
                       <p className="hw-muted" style={{ marginTop: 10 }}>Not generated yet.</p>
+                    )}
+
+                    {slot.workouts && (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                        <ScoreForm workoutId={slot.workouts.id} calendarSlotId={slot.id} movements={allMovementRows ?? []} />
+                        <Link href={`/leaderboard/${slot.workouts.id}`} className="hw-link-back" style={{ marginTop: 10 }}>
+                          Leaderboard →
+                        </Link>
+                      </div>
+                    )}
+
+                    {slot.workouts && !hasRecordedEquipment && (
+                      <div className="hw-card" style={{ marginTop: 10, background: 'var(--hw-violet)', color: 'var(--hw-paper)' }}>
+                        <p style={{ margin: 0, fontSize: 13 }}>
+                          Add your equipment and skill level to see your actual Rx for this workout.
+                        </p>
+                        <Link href="/account" className="hw-btn hw-btn-mustard" style={{ marginTop: 12, fontSize: 14, padding: 12 }}>
+                          Set up your gear →
+                        </Link>
+                      </div>
+                    )}
+
+                    {hasRecordedEquipment && scaled.length > 0 && (
+                      <div className="hw-card" style={{ marginTop: 10 }}>
+                        <span className="hw-label" style={{ color: 'var(--hw-violet)' }}>Your Rx</span>
+                        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {scaled.map((r) => (
+                            <div key={r.prescribedName} style={{ fontSize: 13 }}>
+                              {r.prescribedName} → <strong>{r.displayName}</strong>{' '}
+                              <span className="hw-pill hw-pill-mustard" style={{ marginLeft: 4 }}>
+                                {r.scaledBecause === 'skill_level' ? 'skill' : 'equip sub'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {hasRecordedEquipment && gaps.length > 0 && (
+                      <div className="hw-card" style={{ marginTop: 10 }}>
+                        <span className="hw-label" style={{ color: 'var(--hw-pink-deep)' }}>Needs a manual scale</span>
+                        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {gaps.map((g) => (
+                            <div key={g.prescribedName} style={{ fontSize: 13 }}>
+                              <div>
+                                {g.prescribedName} — you don&apos;t have: {g.missingEquipment.join(', ')}
+                              </div>
+                              {/* Only present for a missing monostructural machine with a
+                                  recorded distance or calorie count (CAP chart conversion,
+                                  added 2026-09-06, extended to calories 2026-09-07) --
+                                  everything else still falls back to the plain gap message
+                                  above with nothing further to suggest.
+                                  Row/Ski/Bike/Echo options are fixed male-first ("M/F"),
+                                  matching every other sex-split number on this page (barbell
+                                  loads read "135/95," male first regardless of which number is
+                                  larger). Run is never sex-split at all (John, 2026-09-06:
+                                  "Run distances never need to change between M/F ... everyone
+                                  runs the same distances") -- it renders as a single unisex
+                                  number, computed off the male axis, not a female/male pair,
+                                  and always in meters (unit: 'm') even when the source piece
+                                  was calorie-based, since you don't "run calories." Non-Run
+                                  options carry their own unit ('m' or 'cal') matching whatever
+                                  the source movement was prescribed in. */}
+                              {g.machineScaleOptions && (
+                                <div className="hw-muted" style={{ marginTop: 4 }}>
+                                  Try: {g.machineScaleOptions
+                                    .map((o) => {
+                                      const suffix = o.unit === 'cal' ? ' Cal' : 'm';
+                                      return o.unisex
+                                        ? `${o.value}${suffix} ${o.machine}`
+                                        : `${o.male}/${o.female}${suffix} ${o.machine} (M/F)`;
+                                    })
+                                    .join(' · ')}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {hasRecordedEquipment && scaled.length === 0 && gaps.length === 0 && resolved.length > 0 && (
+                      <div className="hw-pill hw-pill-cyan" style={{ marginTop: 10 }}>
+                        ✓ Rx as written — you have the gear and skill level for this one.
+                      </div>
                     )}
                   </div>
                 );
@@ -788,6 +728,7 @@ export default async function DashboardPage() {
           );
         })}
       </div>
+      <TabBar active="wod" boardHref={boardHref} />
     </main>
   );
 }
