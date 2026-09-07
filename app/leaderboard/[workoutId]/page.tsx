@@ -34,24 +34,25 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ wo
 
   const logIds = (logs ?? []).map((l: any) => l.id);
 
-  const { data: posts } = logIds.length
-    ? await supabase.from('posts').select('id, body, workout_log_id').in('workout_log_id', logIds)
-    : { data: [] as any[] };
-
-  const postIds = (posts ?? []).map((p: any) => p.id);
-
-  const [{ data: reactionRows }] = await Promise.all([
-    postIds.length
-      ? supabase.from('reactions').select('post_id, profile_id').in('post_id', postIds).eq('type', 'like')
+  const [{ data: posts }, { data: reactionRows }] = await Promise.all([
+    logIds.length
+      ? supabase.from('posts').select('id, body, workout_log_id').in('workout_log_id', logIds)
+      : Promise.resolve({ data: [] as any[] }),
+    // Keyed on workout_log_id, not post_id -- a shaka needs to work on every
+    // entry, and ScoreForm's comment is optional, so a post doesn't always
+    // exist (John's report, 2026-09-07: no way to like a score with no
+    // comment attached).
+    logIds.length
+      ? supabase.from('reactions').select('workout_log_id, profile_id').in('workout_log_id', logIds).eq('type', 'like')
       : Promise.resolve({ data: [] as any[] }),
   ]);
 
   const postByLogId = new Map((posts ?? []).map((p: any) => [p.workout_log_id, p]));
-  const likeCountByPost = new Map<string, number>();
-  const likedByMeByPost = new Set<string>();
+  const likeCountByLog = new Map<string, number>();
+  const likedByMeByLog = new Set<string>();
   for (const r of (reactionRows ?? []) as any[]) {
-    likeCountByPost.set(r.post_id, (likeCountByPost.get(r.post_id) ?? 0) + 1);
-    if (r.profile_id === user.id) likedByMeByPost.add(r.post_id);
+    likeCountByLog.set(r.workout_log_id, (likeCountByLog.get(r.workout_log_id) ?? 0) + 1);
+    if (r.profile_id === user.id) likedByMeByLog.add(r.workout_log_id);
   }
 
   const entries = (logs ?? []) as any[];
@@ -70,15 +71,18 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ wo
     list.sort((a, b) => b.result_value.weight - a.result_value.weight);
   }
 
-  function renderComment(logId: string) {
+  function renderMeta(logId: string) {
     const post = postByLogId.get(logId);
-    if (!post) return null;
-    const count = likeCountByPost.get(post.id) ?? 0;
-    const liked = likedByMeByPost.has(post.id);
+    const count = likeCountByLog.get(logId) ?? 0;
+    const liked = likedByMeByLog.has(logId);
     return (
       <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-        <p className="hw-muted" style={{ fontSize: 12, margin: 0, flex: 1 }}>&ldquo;{post.body}&rdquo;</p>
-        <LikeButton postId={post.id} initialLiked={liked} initialCount={count} />
+        {post ? (
+          <p className="hw-muted" style={{ fontSize: 12, margin: 0, flex: 1 }}>&ldquo;{post.body}&rdquo;</p>
+        ) : (
+          <span style={{ flex: 1 }} />
+        )}
+        <LikeButton workoutLogId={logId} initialLiked={liked} initialCount={count} />
       </div>
     );
   }
@@ -110,7 +114,7 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ wo
                     <span><strong>#{i + 1}</strong> <Avatar name={e.profiles?.display_name ?? 'Athlete'} url={e.profiles?.avatar_url ?? null} />{e.profiles?.display_name ?? 'Athlete'}</span>
                     <span style={{ fontWeight: 700 }}>{formatTime(e.result_value.seconds)}{e.rpe ? ` · RPE ${e.rpe}` : ''}</span>
                   </div>
-                  {renderComment(e.id)}
+                  {renderMeta(e.id)}
                 </div>
               ))}
             </div>
@@ -129,7 +133,7 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ wo
                       {e.result_value.rounds} rounds + {e.result_value.reps}{e.rpe ? ` · RPE ${e.rpe}` : ''}
                     </span>
                   </div>
-                  {renderComment(e.id)}
+                  {renderMeta(e.id)}
                 </div>
               ))}
             </div>
@@ -149,7 +153,7 @@ export default async function LeaderboardPage({ params }: { params: Promise<{ wo
                       {e.rpe ? ` · RPE ${e.rpe}` : ''}
                     </span>
                   </div>
-                  {renderComment(e.id)}
+                  {renderMeta(e.id)}
                 </div>
               ))}
             </div>
