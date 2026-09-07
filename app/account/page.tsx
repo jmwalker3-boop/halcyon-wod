@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import LogoutButton from '@/components/LogoutButton';
 import { createClient } from '@/lib/supabase/client';
+import { EQUIPMENT_OPTIONS, SKILL_CATEGORIES, LEVELS, type SkillCategoryKey, type SkillLevelValue } from '@/lib/equipment';
 
 // Consolidated account hub (John's request, 2026-09-07: "we should have an
 // 'account' page, too, for athletes" -- and when asked how far to take it,
@@ -15,47 +16,8 @@ import { createClient } from '@/lib/supabase/client';
 // billing summary linking out to /billing rather than duplicating that
 // page's checkout logic here. /settings itself now just redirects here
 // (see app/settings/page.tsx) so no existing link/bookmark breaks.
-const EQUIPMENT_OPTIONS: { tag: string; label: string }[] = [
-  { tag: 'barbell', label: 'Barbell' },
-  { tag: 'plate', label: 'Plates' },
-  { tag: 'dumbbell', label: 'Dumbbells' },
-  { tag: 'kettlebell', label: 'Kettlebell' },
-  { tag: 'pull-up bar', label: 'Pull-up bar' },
-  { tag: 'rings', label: 'Rings' },
-  { tag: 'box', label: 'Plyo box' },
-  { tag: 'bench', label: 'Bench' },
-  { tag: 'band', label: 'Resistance band' },
-  { tag: 'wall', label: 'Wall space (for wall balls / HSPU / handstand work)' },
-  { tag: 'rope', label: 'Climbing rope' },
-  { tag: 'jump rope', label: 'Jump rope' },
-  { tag: 'med ball', label: 'Medicine ball' },
-  { tag: 'sandbag', label: 'Sandbag' },
-  { tag: 'ghd', label: 'GHD machine' },
-  { tag: 'bike', label: 'Bike (Echo/Assault-style)' },
-  { tag: 'bike erg', label: 'Bike erg' },
-  { tag: 'rower', label: 'Rower' },
-  { tag: 'ski erg', label: 'Ski erg' },
-  { tag: 'cable', label: 'Cable machine' },
-  { tag: 'pvc', label: 'PVC pipe' },
-];
-
-type SkillCategoryKey = 'pull_up_bar' | 'rings' | 'handstand' | 'hanging_core' | 'rope_climb' | 'pistol';
-type SkillLevelValue = 'rx' | 'intermediate' | 'beginner';
-
-const SKILL_CATEGORIES: { key: SkillCategoryKey; label: string; hint: string }[] = [
-  { key: 'pull_up_bar', label: 'Pull-up bar', hint: 'Pull-ups, chest-to-bar, muscle-ups' },
-  { key: 'rings', label: 'Rings', hint: 'Ring rows/dips, ring muscle-ups, toes-to-rings' },
-  { key: 'handstand', label: 'Handstand', hint: 'HSPU, handstand walk, wall walks' },
-  { key: 'hanging_core', label: 'Toes-to-bar / hanging core', hint: 'Toes-to-bar, knees-to-elbows' },
-  { key: 'rope_climb', label: 'Rope climb', hint: '' },
-  { key: 'pistol', label: 'Pistols (single-leg squat)', hint: '' },
-];
-
-const LEVELS: { value: string; label: string }[] = [
-  { value: 'rx', label: 'Rx -- do it as written' },
-  { value: 'intermediate', label: 'Intermediate scale' },
-  { value: 'beginner', label: 'Beginner scale' },
-];
+// Equipment/skill constants live in lib/equipment.ts -- shared with
+// app/onboarding, which needs the exact same 21 tags and 6 categories.
 
 type LoadState = 'loading' | 'ready' | 'error';
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';

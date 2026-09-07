@@ -229,6 +229,9 @@ export default async function DashboardPage() {
         {(!enrollments || enrollments.length === 0) && (
           <div className="hw-card" style={{ marginTop: 16 }}>
             <p style={{ margin: 0 }}>Not enrolled in a program yet.</p>
+            <Link href="/onboarding" className="hw-btn hw-btn-dark" style={{ marginTop: 12, fontSize: 14, padding: 12 }}>
+              Get set up →
+            </Link>
           </div>
         )}
 
