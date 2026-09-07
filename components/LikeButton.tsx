@@ -46,7 +46,12 @@ export default function LikeButton({
       onClick={toggle}
       disabled={busy}
       className={liked ? 'hw-pill hw-pill-dark' : 'hw-pill hw-pill-outline'}
-      style={{ cursor: 'pointer', border: liked ? 'none' : undefined, opacity: liked ? 1 : 0.55 }}
+      style={{
+        cursor: 'pointer',
+        border: liked ? 'none' : undefined,
+        opacity: liked ? 1 : 0.55,
+        boxShadow: liked ? '3px 3px 0 var(--hw-pink)' : '3px 3px 0 var(--hw-ink)',
+      }}
     >
       🤙 {count}
     </button>
