@@ -83,6 +83,12 @@ export default function AccountPage() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
   const [billing, setBilling] = useState<BillingSummary>(null);
+  const [cancelState, setCancelState] = useState<'idle' | 'canceling' | 'error'>('idle');
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  const [deleteAccountConfirmText, setDeleteAccountConfirmText] = useState('');
+  const [deleteAccountState, setDeleteAccountState] = useState<'idle' | 'deleting' | 'error'>('idle');
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -224,6 +230,68 @@ export default function AccountPage() {
     }
     setNewPassword('');
     setPasswordState('saved');
+  }
+
+  // Hits app/api/stripe/cancel rather than calling Stripe from the client
+  // (the secret key is server-only). That route cancels immediately in
+  // Stripe; the existing webhook (customer.subscription.deleted) is what
+  // actually flips subscriptions.status to 'canceled' in the DB, so the
+  // local billing state here is just an optimistic update for the UI --
+  // a page refresh will show whatever the webhook settled on.
+  async function handleCancelSubscription() {
+    setCancelState('canceling');
+    setCancelError(null);
+    try {
+      const res = await fetch('/api/stripe/cancel', { method: 'POST' });
+      let body: { error?: string } = {};
+      try {
+        body = await res.json();
+      } catch {
+        // Non-JSON error body -- fall through to the generic message below.
+      }
+      if (!res.ok) {
+        setCancelState('error');
+        setCancelError(body.error ?? `Request failed (${res.status}).`);
+        return;
+      }
+      setBilling((prev) => (prev ? { ...prev, status: 'canceled' } : prev));
+      setCancelState('idle');
+    } catch (err) {
+      setCancelState('error');
+      setCancelError(err instanceof Error ? err.message : 'Network error.');
+    }
+  }
+
+  // Gated by typing DELETE first -- this is permanent (every table
+  // referencing profiles cascades on delete, see app/api/account/delete/route.ts),
+  // so a single misclick shouldn't be enough to do it. Signs out and bounces
+  // to the marketing/login page immediately after, since the session's JWT
+  // otherwise stays valid until it naturally expires even though the
+  // underlying account is gone.
+  async function handleDeleteAccount() {
+    if (deleteAccountConfirmText.trim() !== 'DELETE') return;
+    setDeleteAccountState('deleting');
+    setDeleteAccountError(null);
+    try {
+      const res = await fetch('/api/account/delete', { method: 'POST' });
+      let body: { error?: string } = {};
+      try {
+        body = await res.json();
+      } catch {
+        // Non-JSON error body -- fall through to the generic message below.
+      }
+      if (!res.ok) {
+        setDeleteAccountState('error');
+        setDeleteAccountError(body.error ?? `Request failed (${res.status}).`);
+        return;
+      }
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      window.location.href = '/';
+    } catch (err) {
+      setDeleteAccountState('error');
+      setDeleteAccountError(err instanceof Error ? err.message : 'Network error.');
+    }
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -420,9 +488,25 @@ export default function AccountPage() {
           ) : (
             <p className="hw-muted" style={{ marginTop: 8, fontSize: 13 }}>No active plan.</p>
           )}
-          <Link href="/billing" className="hw-link-back" style={{ marginTop: 10, display: 'inline-block' }}>
-            Manage billing →
-          </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
+            <Link href="/billing" className="hw-link-back" style={{ display: 'inline-block' }}>
+              Manage billing →
+            </Link>
+            {billing && ['trialing', 'active', 'past_due'].includes(billing.status) && (
+              <button
+                type="button"
+                onClick={handleCancelSubscription}
+                disabled={cancelState === 'canceling'}
+                className="hw-btn"
+                style={{ width: 'auto', padding: '7px 14px', fontSize: 12, border: '2px solid var(--hw-pink-deep)', color: 'var(--hw-pink-deep)' }}
+              >
+                {cancelState === 'canceling' ? 'Canceling…' : 'Cancel subscription'}
+              </button>
+            )}
+          </div>
+          {cancelState === 'error' && cancelError && (
+            <p className="hw-error" style={{ marginTop: 8, marginBottom: 0, fontSize: 12 }}>{cancelError}</p>
+          )}
         </div>
       </div>
 
@@ -570,6 +654,45 @@ export default function AccountPage() {
             )}
           </div>
         </form>
+
+        <div className="hw-card" style={{ marginBottom: 24, border: '2px solid var(--hw-pink-deep)' }}>
+          <span className="hw-eyebrow" style={{ color: 'var(--hw-pink-deep)' }}>Delete account</span>
+          <p className="hw-muted" style={{ fontSize: 13, marginTop: 6 }}>
+            Permanently deletes your account -- scores, PRs, posts, everything. This can&apos;t be undone.
+            Type <strong>DELETE</strong> to confirm.
+          </p>
+          <input
+            type="text"
+            value={deleteAccountConfirmText}
+            onChange={(e) => setDeleteAccountConfirmText(e.target.value)}
+            placeholder="DELETE"
+            style={{
+              display: 'block',
+              width: '100%',
+              marginTop: 10,
+              font: '700 14px/1 "Space Grotesk", sans-serif',
+              padding: '12px 14px',
+              border: '2px solid var(--hw-pink-deep)',
+              borderRadius: 8,
+              background: 'var(--hw-paper)',
+              color: 'var(--hw-ink)',
+            }}
+          />
+          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
+              onClick={handleDeleteAccount}
+              disabled={deleteAccountState === 'deleting' || deleteAccountConfirmText.trim() !== 'DELETE'}
+              className="hw-btn"
+              style={{ width: 'auto', padding: '10px 18px', fontSize: 13, background: 'var(--hw-pink-deep)', color: 'var(--hw-paper)' }}
+            >
+              {deleteAccountState === 'deleting' ? 'Deleting…' : 'Delete my account'}
+            </button>
+            {deleteAccountState === 'error' && deleteAccountError && (
+              <span className="hw-error" style={{ fontSize: 12 }}>{deleteAccountError}</span>
+            )}
+          </div>
+        </div>
       </div>
     </main>
   );
