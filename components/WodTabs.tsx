@@ -8,7 +8,7 @@ import { useState } from 'react';
 // (possibly expensive) resolver output computed in app/dashboard/page.tsx
 // doesn't need a second round trip just to flip a tab.
 export default function WodTabs({ asWritten, myRx }: { asWritten: React.ReactNode; myRx: React.ReactNode }) {
-  const [tab, setTab] = useState<'as_written' | 'my_rx'>('my_rx');
+  const [tab, setTab] = useState<'as_written' | 'my_rx'>('as_written');
 
   return (
     <div>
