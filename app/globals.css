@@ -105,10 +105,42 @@ button {
   min-height: 100vh;
 }
 
+/* Mustard construction-paper variant of .hw-shell -- same recipe, swapped
+   swatch color. Onboarding's gear-check step (mockup 3b) is the only place
+   this is used; every other hw- screen is on the cyan paper. */
+.hw-shell-mustard {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  color: var(--hw-ink);
+  background-color: var(--hw-mustard);
+  background-image:
+    radial-gradient(#00000016 .8px, transparent .9px),
+    radial-gradient(#FFFFFF66 .8px, transparent .9px),
+    repeating-linear-gradient(135deg, var(--hw-mustard) 0 90px, #FFDD4B 90px 180px);
+  background-size: 3px 3px, 4px 4px, auto;
+  min-height: 100vh;
+}
+
 .hw-wrap {
   max-width: 480px;
   margin: 0 auto;
   padding: 28px 20px 40px;
+}
+
+.hw-progress-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.hw-progress-dot {
+  width: 34px;
+  height: 8px;
+  border: 2px solid var(--hw-ink);
+  border-radius: 999px;
+  background: var(--hw-paper);
+}
+
+.hw-progress-dot-on {
+  background: var(--hw-ink);
 }
 
 .hw-eyebrow-row {

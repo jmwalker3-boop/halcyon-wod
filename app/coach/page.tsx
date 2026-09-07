@@ -37,10 +37,13 @@ import { createClient } from '@/lib/supabase/client';
 // also needs the Suspense wrapper below or Next's static-render check for
 // this route fails the build.
 
+type Modality = 'M' | 'G' | 'W';
+
 type Slot = {
   id: string;
   date: string;
   day_type: string;
+  target_modalities: Modality[] | null;
   override_reason: string | null;
   workouts: {
     id: string;
@@ -49,8 +52,25 @@ type Slot = {
     is_benchmark: boolean;
     coach_notes: string | null;
     scaling_notes: string | null;
+    workout_movements: { movements: { canonical_name: string } | null }[];
   } | null;
 };
+
+const MODALITY_LABEL: Record<Modality, string> = { M: 'Monostructural', G: 'Gymnastic', W: 'Weightlifting' };
+
+// Cell color for the cycle-calendar grid (mockup 2d) -- M+W together reads
+// as the heaviest combined day (violet), M alone or M mixed with anything
+// but W reads as the metcon color (pink), G (with or without W) reads
+// gymnastics (cyan), and W alone reads pure strength (mustard). Matches
+// the mockup's own example grid exactly for every combination it shows.
+function cellColor(modalities: Modality[]): string {
+  const has = (m: Modality) => modalities.includes(m);
+  if (has('M') && has('W')) return 'var(--hw-violet)';
+  if (has('M')) return 'var(--hw-pink)';
+  if (has('G')) return 'var(--hw-cyan)';
+  if (has('W')) return 'var(--hw-mustard)';
+  return 'var(--hw-paper)';
+}
 
 function mondayOnOrAfter(d: Date): Date {
   const day = d.getDay();
@@ -119,7 +139,9 @@ function CoachDeck() {
       const { data, error: fetchError } = await supabase
         .from('calendar_slots')
         .select(
-          'id, date, day_type, override_reason, workouts ( id, title, raw_text, is_benchmark, coach_notes, scaling_notes )',
+          `id, date, day_type, target_modalities, override_reason,
+           workouts ( id, title, raw_text, is_benchmark, coach_notes, scaling_notes,
+             workout_movements ( movements ( canonical_name ) ) )`,
         )
         .gte('date', weekStart)
         .lte('date', weekEnd)
@@ -201,6 +223,101 @@ function CoachDeck() {
           <Link href={`/coach?start=${addDays(weekStart, -7)}`} className="hw-pill hw-pill-outline">← Prev week</Link>
           <Link href={`/coach?start=${addDays(weekStart, 7)}`} className="hw-pill hw-pill-outline">Next week →</Link>
         </div>
+
+        <div className="hw-card" style={{ marginTop: 16 }}>
+          <span className="hw-label">This week's coverage</span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 5, marginTop: 12 }}>
+            {days.map((date) => {
+              const slot = byDate.get(date);
+              const isRecovery = slot?.day_type === 'Recovery';
+              const modalities = slot?.target_modalities ?? [];
+              const label = isRecovery ? 'R' : modalities.length ? modalities.join('') : '?';
+              return (
+                <div
+                  key={date}
+                  title={new Date(`${date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                  style={{
+                    aspectRatio: '1',
+                    border: isRecovery || !slot ? '2px dashed var(--hw-ink)' : '2px solid var(--hw-ink)',
+                    borderRadius: 4,
+                    background: isRecovery || !slot ? 'transparent' : cellColor(modalities),
+                    opacity: isRecovery || !slot ? 0.5 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    font: '700 8px/1 "Space Mono", monospace',
+                  }}
+                >
+                  {label}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap', font: '700 8px/1 "Space Mono", monospace' }} className="hw-muted">
+            <span>M = {MODALITY_LABEL.M.toUpperCase()}</span>
+            <span>G = {MODALITY_LABEL.G.toUpperCase()}</span>
+            <span>W = {MODALITY_LABEL.W.toUpperCase()}</span>
+            <span>R = RECOVERY</span>
+          </div>
+        </div>
+
+        {(() => {
+          const withModalities = slots.filter((s) => s.target_modalities && s.target_modalities.length > 0);
+          if (withModalities.length === 0) return null;
+          const counts: Record<Modality, number> = { M: 0, G: 0, W: 0 };
+          for (const s of withModalities) {
+            for (const m of s.target_modalities ?? []) counts[m] += 1;
+          }
+          const total = withModalities.length;
+          return (
+            <div className="hw-card" style={{ marginTop: 12, background: 'var(--hw-violet)', color: 'var(--hw-paper)' }}>
+              <span className="hw-label">Modality balance · this week</span>
+              <div style={{ display: 'flex', gap: 8, marginTop: 14, alignItems: 'flex-end', height: 80 }}>
+                {(['M', 'G', 'W'] as Modality[]).map((m) => {
+                  const pct = Math.round((counts[m] / total) * 100);
+                  return (
+                    <div key={m} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, height: '100%', justifyContent: 'flex-end' }}>
+                      <div style={{ width: '100%', height: `${Math.max(4, pct)}%`, background: cellColor([m]), border: '2px solid var(--hw-ink)', borderRadius: '4px 4px 0 0' }} />
+                      <span style={{ font: '700 10px/1 "Space Mono", monospace' }}>{m} {pct}%</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
+        {(() => {
+          const counts = new Map<string, number>();
+          for (const s of slots) {
+            for (const wm of s.workouts?.workout_movements ?? []) {
+              const name = wm.movements?.canonical_name;
+              if (!name) continue;
+              counts.set(name, (counts.get(name) ?? 0) + 1);
+            }
+          }
+          const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+          if (top.length === 0) return null;
+          const max = top[0][1];
+          return (
+            <div className="hw-card" style={{ marginTop: 12 }}>
+              <span className="hw-label">Movement frequency · top {top.length}</span>
+              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {top.map(([name, count]) => (
+                  <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ font: '700 11px/1 "Space Mono", monospace', width: 112, flex: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {name.toUpperCase()}
+                    </span>
+                    <div style={{ flex: 1, height: 12, background: 'var(--hw-ink)', opacity: 0.1, border: '2px solid var(--hw-ink)', borderRadius: 999, overflow: 'hidden' }}>
+                      <div style={{ width: `${(count / max) * 100}%`, height: '100%', background: 'var(--hw-mustard)' }} />
+                    </div>
+                    <span className="hw-muted" style={{ font: '700 10px/1 "Space Mono", monospace' }}>{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
           {days.map((date) => {

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { ResultType } from '@/lib/db/types';
+import type { AthleteSkillLevel, ResultType } from '@/lib/db/types';
 
 // Score entry for a WOD card on /dashboard. Scoped under John's own model
 // (2026-09-07): a WOD's scoring format isn't tagged ahead of time in the
@@ -24,10 +24,16 @@ export default function ScoreForm({
   workoutId,
   calendarSlotId,
   movements,
+  tier = 'rx',
 }: {
   workoutId: string;
   calendarSlotId: string | null;
   movements: Movement[];
+  // The athlete's own scaling tier for this workout's skill categories
+  // (see dashboard/page.tsx's tierForSlot) -- stored on the log so the
+  // leaderboard can filter/badge by silo without re-deriving it later.
+  // Defaults to 'rx' for any caller that doesn't have it computed yet.
+  tier?: AthleteSkillLevel;
 }) {
   const [open, setOpen] = useState(false);
   const [resultType, setResultType] = useState<ResultType>('time');
@@ -96,6 +102,7 @@ export default function ScoreForm({
         result_type: resultType,
         result_value: resultValue,
         rpe: rpe ? Number(rpe) : null,
+        result_tier: tier,
       })
       .select('id')
       .single();

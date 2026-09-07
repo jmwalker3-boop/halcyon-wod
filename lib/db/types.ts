@@ -182,6 +182,12 @@ export interface Database {
           result_value: Record<string, unknown>;
           rpe: number | null;
           performed_at: string;
+          // Added 20260907180000_workout_logs_result_tier.sql -- the
+          // scaling tier this score was logged under (rx/intermediate/
+          // beginner), so the leaderboard can filter and badge by silo.
+          // Defaults to 'rx' on the column, so every pre-migration row
+          // reads as 'rx' whether or not that was actually true.
+          result_tier: AthleteSkillLevel;
         };
         Insert: {
           id?: string;
@@ -193,6 +199,7 @@ export interface Database {
           result_value: Record<string, unknown>;
           rpe?: number | null;
           performed_at?: string;
+          result_tier?: AthleteSkillLevel;
         };
         Update: never;
         Relationships: [];
