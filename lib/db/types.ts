@@ -237,6 +237,12 @@ export interface Database {
         Update: never;
         Relationships: [];
       };
+      messages: {
+        Row: { id: string; profile_id: string; body: string; created_at: string };
+        Insert: { id?: string; profile_id: string; body: string; created_at?: string };
+        Update: never;
+        Relationships: [];
+      };
       generation_drafts: {
         Row: { id: string; generation_request_id: string; draft_text: string; draft_sequence: unknown; model_used: string };
         Insert: { id?: string; generation_request_id: string; draft_text: string; draft_sequence: unknown; model_used: string };
