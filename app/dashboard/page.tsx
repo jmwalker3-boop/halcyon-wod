@@ -418,6 +418,34 @@ export default async function DashboardPage() {
                 <Link href="/wod" className="hw-btn hw-btn-mustard" style={{ marginTop: 10, fontSize: 14, padding: 12 }}>
                   Open today&apos;s WOD →
                 </Link>
+
+                {/* Board card, back under Today's WOD (John's request,
+                    2026-09-08) -- goes through /board rather than a direct
+                    /leaderboard/[id] link, same resolver app/board/page.tsx
+                    already uses for the bottom TabBar's Board tab, so this
+                    card and that tab always agree on which workout "today's
+                    board" means. */}
+                <Link href="/board" style={{ display: 'block', textDecoration: 'none', color: 'inherit', marginTop: 10 }}>
+                  <div className="hw-card" style={{ padding: 0, overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        padding: '12px 16px',
+                        borderBottom: '4px solid var(--hw-ink)',
+                        background: 'var(--hw-violet)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 8,
+                      }}
+                    >
+                      <span className="hw-label" style={{ color: 'var(--hw-paper)' }}>Board</span>
+                    </div>
+                    <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <p style={{ margin: 0, fontSize: 13 }}>See who&apos;s logged a score today.</p>
+                      <span className="hw-h2" style={{ fontSize: 18 }}>→</span>
+                    </div>
+                  </div>
+                </Link>
               </div>
             ) : (
               <p className="hw-muted" style={{ marginTop: 10 }}>Not generated yet.</p>
