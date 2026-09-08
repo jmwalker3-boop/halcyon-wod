@@ -175,6 +175,38 @@ export default async function DashboardPage() {
     .toUpperCase()
     .replace(',', ' ·');
 
+  // Greeting pool (John's request, 2026-09-08: "'Hey, [name] -- You're up'
+  // needs more diversity... some surf/skate, some 90s slang, and then some
+  // normal, casual greetings") -- picked fresh on every load rather than
+  // by day/streak/anything sticky, so reloading the page is itself a way
+  // to see a different one. {NAME} is replaced with the athlete's display
+  // name (or 'ATHLETE' when none is set) after picking.
+  const GREETINGS = [
+    // Surf/skate
+    "{NAME} — DROP IN, IT'S GO TIME.",
+    "WAX UP, {NAME}. YOU'RE UP.",
+    "{NAME}, THE SESH IS ON. LET'S RIP.",
+    "KICK, PUSH, COAST — LET'S GO, {NAME}.",
+    'GNARLY DAY AHEAD, {NAME}. SEND IT.',
+    '{NAME} — CATCH THIS WAVE. GO TIME.',
+    // 90s slang
+    "AS IF, {NAME} — LET'S GET BUSY.",
+    "{NAME}, THIS IS THE JAM. GO TIME.",
+    "WORD UP, {NAME} — LET'S DO THIS.",
+    'TALK TO THE HAND LATER, {NAME}. WORK NOW.',
+    "{NAME}, KEEPIN' IT REAL. TIME TO TRAIN.",
+    'TOTALLY TUBULAR, {NAME}. YOU’RE UP.',
+    // Normal, casual
+    "HEY {NAME} — YOU'RE UP.",
+    "MORNING, {NAME}. LET'S GET AFTER IT.",
+    '{NAME}, READY WHEN YOU ARE.',
+    "LET'S GO, {NAME}.",
+    '{NAME} — TIME TO TRAIN.',
+    "GOOD TO SEE YOU, {NAME}. LET'S WORK.",
+  ];
+  const greetingName = profile?.display_name?.toUpperCase() || 'ATHLETE';
+  const greeting = GREETINGS[Math.floor(Math.random() * GREETINGS.length)].replace('{NAME}', greetingName);
+
   // "STREAK · N ON-DAYS" (mockup 2a) -- consecutive calendar days with at
   // least one workout_log, counted backward from today. If nothing's
   // logged yet today, the streak still counts through yesterday (an
@@ -333,7 +365,7 @@ export default async function DashboardPage() {
         )}
 
         <p className="hw-h2" style={{ fontSize: 17, marginTop: 16 }}>
-          HEY{profile?.display_name ? ` ${profile.display_name.toUpperCase()}` : ''} — YOU&apos;RE UP.
+          {greeting}
         </p>
         {streakDays > 0 && (
           <p className="hw-lede" style={{ fontSize: 13 }}>
