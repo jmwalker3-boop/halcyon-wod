@@ -5,10 +5,14 @@ import { createClient } from '@/lib/supabase/client';
 import type { AthleteSkillLevel, ResultType } from '@/lib/db/types';
 
 // Score entry for a WOD card on /dashboard. Scoped under John's own model
-// (2026-09-07): a WOD's scoring format isn't tagged ahead of time in the
-// data -- the athlete just picks whichever of the three shapes matches
-// what they did (time / rounds+reps / weight+sets+reps) when they log it.
-// 'load' additionally requires a movement (for PR comparison below);
+// (2026-09-07): by default a WOD's scoring format isn't tagged ahead of
+// time in the data -- the athlete just picks whichever of the three
+// shapes matches what they did (time / rounds+reps / weight+sets+reps)
+// when they log it. A coach can lock this down per-WOD from Coach Deck
+// (workouts.result_type_override, see lockedResultType below) when
+// leaving it up to the athlete would be confusing -- e.g. a workout with
+// only one sensible scoring shape. 'load' additionally requires a
+// movement (for PR comparison below);
 // picked from the full movement catalog rather than restricted to this
 // WOD's own movements, since a "load" entry might record e.g. a strength
 // piece buried in an accessory block that workout_movements doesn't carry
@@ -20,11 +24,14 @@ import type { AthleteSkillLevel, ResultType } from '@/lib/db/types';
 // weight beats the current best for that exact movement+rep-scheme.
 type Movement = { id: string; canonical_name: string };
 
+const RESULT_TYPE_LABEL: Record<string, string> = { time: 'Time', rounds_reps: 'Rounds + reps', load: 'Weight' };
+
 export default function ScoreForm({
   workoutId,
   calendarSlotId,
   movements,
   tier = 'rx',
+  lockedResultType = null,
 }: {
   workoutId: string;
   calendarSlotId: string | null;
@@ -34,9 +41,16 @@ export default function ScoreForm({
   // leaderboard can filter/badge by silo without re-deriving it later.
   // Defaults to 'rx' for any caller that doesn't have it computed yet.
   tier?: AthleteSkillLevel;
+  // Coach-set workouts.result_type_override (John's request, 2026-09-07:
+  // "allow the admin to assign the scoring options for wods and not leave
+  // it up to the athletes, it could be confusing"). Null (the default)
+  // keeps the original behavior -- athlete picks whichever of the three
+  // shapes matches what they did; a set value hides the picker entirely
+  // and locks the form to that one shape.
+  lockedResultType?: ResultType | null;
 }) {
   const [open, setOpen] = useState(false);
-  const [resultType, setResultType] = useState<ResultType>('time');
+  const [resultType, setResultType] = useState<ResultType>(lockedResultType ?? 'time');
   const [minutes, setMinutes] = useState('');
   const [seconds, setSeconds] = useState('');
   const [rounds, setRounds] = useState('');
@@ -176,32 +190,38 @@ export default function ScoreForm({
     <form onSubmit={handleSubmit} className="hw-card" style={{ marginTop: 10 }}>
       <span className="hw-label">Log your score</span>
 
-      <div style={{ display: 'flex', marginTop: 10, border: '3px solid var(--hw-ink)', borderRadius: 999, overflow: 'hidden' }}>
-        {(
-          [
-            { value: 'time', label: 'TIME' },
-            { value: 'rounds_reps', label: 'ROUNDS+REPS' },
-            { value: 'load', label: 'WEIGHT' },
-          ] as { value: ResultType; label: string }[]
-        ).map((opt, i) => (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => setResultType(opt.value)}
-            style={{
-              flex: 1,
-              border: 'none',
-              borderLeft: i > 0 ? '3px solid var(--hw-ink)' : 'none',
-              padding: '10px 4px',
-              font: '700 10px/1 "Space Mono", monospace',
-              background: resultType === opt.value ? 'var(--hw-cyan)' : 'var(--hw-paper)',
-              cursor: 'pointer',
-            }}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
+      {lockedResultType ? (
+        <p className="hw-muted" style={{ fontSize: 11, marginTop: 8, marginBottom: 0 }}>
+          Scoring for this WOD: <strong>{RESULT_TYPE_LABEL[lockedResultType] ?? lockedResultType}</strong>
+        </p>
+      ) : (
+        <div style={{ display: 'flex', marginTop: 10, border: '3px solid var(--hw-ink)', borderRadius: 999, overflow: 'hidden' }}>
+          {(
+            [
+              { value: 'time', label: 'TIME' },
+              { value: 'rounds_reps', label: 'ROUNDS+REPS' },
+              { value: 'load', label: 'WEIGHT' },
+            ] as { value: ResultType; label: string }[]
+          ).map((opt, i) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setResultType(opt.value)}
+              style={{
+                flex: 1,
+                border: 'none',
+                borderLeft: i > 0 ? '3px solid var(--hw-ink)' : 'none',
+                padding: '10px 4px',
+                font: '700 10px/1 "Space Mono", monospace',
+                background: resultType === opt.value ? 'var(--hw-cyan)' : 'var(--hw-paper)',
+                cursor: 'pointer',
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {resultType === 'time' && (
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
@@ -301,4 +321,3 @@ const inputStyle: React.CSSProperties = {
   background: 'var(--hw-paper)',
   color: 'var(--hw-ink)',
 };
-
