@@ -386,6 +386,22 @@ export default async function DashboardPage() {
                       <div className="hw-h1" style={{ fontSize: 30, textShadow: '3px 3px 0 var(--hw-pink)' }}>
                         {todayContext.slot.workouts.title ?? 'TODAY’S WOD'}
                       </div>
+                      {/* Landing card shows the workout itself now, not just
+                          the title (John's request, 2026-09-07: "the
+                          'Today's WOD' card on the landing page should show
+                          the wod") -- still just the raw text, no toggle/
+                          scoring/gym-average, which stay behind the tap
+                          into /wod. */}
+                      <pre
+                        style={{
+                          whiteSpace: 'pre-wrap',
+                          font: '700 12px/1.7 "Space Mono", monospace',
+                          color: 'var(--hw-paper)',
+                          margin: '10px 0 0',
+                        }}
+                      >
+                        {todayContext.slot.workouts.raw_text ?? '(no content yet)'}
+                      </pre>
                       {hasRecordedEquipment && (
                         <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
                           {gaps.length > 0 && (
