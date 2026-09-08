@@ -249,6 +249,45 @@ export default async function DashboardPage() {
     }
   }
 
+  // Mini podium for the Board card (John's request, 2026-09-08: "make sure
+  // the 'board' card contains the graphic, not just a link") -- same
+  // podium visual language as /leaderboard's own top-3, just compact.
+  // Prefers whichever result_type ('time' or 'rounds_reps') actually has
+  // entries for today's workout; 'load' is per-movement with no single
+  // ranking, so it's not eligible for this preview.
+  let podiumEntries: { name: string; score: string }[] = [];
+  if (todayContext?.slot.workouts) {
+    const { data: todayLogRows } = await supabase
+      .from('workout_logs')
+      .select('result_type, result_value, profiles ( display_name )')
+      .eq('workout_id', todayContext.slot.workouts.id)
+      .in('result_type', ['time', 'rounds_reps']);
+    const timeRows = (todayLogRows ?? []).filter((r: any) => r.result_type === 'time');
+    const roundsRepsRows = (todayLogRows ?? []).filter((r: any) => r.result_type === 'rounds_reps');
+    if (timeRows.length > 0) {
+      podiumEntries = timeRows
+        .sort((a: any, b: any) => a.result_value.seconds - b.result_value.seconds)
+        .slice(0, 3)
+        .map((r: any) => ({
+          name: r.profiles?.display_name ?? 'Athlete',
+          score: `${Math.floor(r.result_value.seconds / 60)}:${String(r.result_value.seconds % 60).padStart(2, '0')}`,
+        }));
+    } else if (roundsRepsRows.length > 0) {
+      podiumEntries = roundsRepsRows
+        .sort(
+          (a: any, b: any) =>
+            b.result_value.rounds * 1000 + b.result_value.reps - (a.result_value.rounds * 1000 + a.result_value.reps),
+        )
+        .slice(0, 3)
+        .map((r: any) => ({
+          name: r.profiles?.display_name ?? 'Athlete',
+          score: `${r.result_value.rounds}+${r.result_value.reps}`,
+        }));
+    }
+  }
+  const PODIUM_BG = ['var(--hw-mustard)', 'var(--hw-paper)', 'var(--hw-orange)'];
+  const PODIUM_ORDER = [2, 1, 3];
+
   return (
     <main className="hw-shell">
       <div className="hw-wrap" style={{ paddingBottom: 100 }}>
@@ -440,9 +479,44 @@ export default async function DashboardPage() {
                     >
                       <span className="hw-label" style={{ color: 'var(--hw-paper)' }}>Board</span>
                     </div>
-                    <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                      <p style={{ margin: 0, fontSize: 13 }}>See who&apos;s logged a score today.</p>
-                      <span className="hw-h2" style={{ fontSize: 18 }}>→</span>
+                    <div style={{ padding: '14px 16px' }}>
+                      {podiumEntries.length > 0 ? (
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
+                          {podiumEntries.map((e, i) => (
+                            <div
+                              key={i}
+                              style={{
+                                flex: i === 0 ? 1.15 : 1,
+                                order: PODIUM_ORDER[i],
+                                background: PODIUM_BG[i],
+                                border: '3px solid var(--hw-ink)',
+                                borderRadius: '10px 10px 0 0',
+                                padding: i === 0 ? '10px 6px' : '8px 6px',
+                                textAlign: 'center',
+                                minWidth: 0,
+                              }}
+                            >
+                              <div style={{ font: `400 ${i === 0 ? 20 : 15}px/1 Bungee, sans-serif` }}>{i + 1}</div>
+                              <div
+                                style={{
+                                  font: '700 9px/1.4 "Space Mono", monospace',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {e.name}
+                              </div>
+                              <div style={{ font: `700 ${i === 0 ? 12 : 11}px/1.3 "Space Mono", monospace` }}>{e.score}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p style={{ margin: 0, fontSize: 13 }}>No scores yet — be the first.</p>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+                        <span className="hw-h2" style={{ fontSize: 14 }}>See the board →</span>
+                      </div>
                     </div>
                   </div>
                 </Link>
