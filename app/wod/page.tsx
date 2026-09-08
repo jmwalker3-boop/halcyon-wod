@@ -256,6 +256,19 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
             </div>
           </div>
         )}
+        {r.status === 'needs_substitution' && r.missingEquipment.includes('barbell') && (
+          <div style={{ borderTop: '3px dashed var(--hw-ink)', padding: '12px 14px' }}>
+            {/* Standing house scale for a missing barbell (John's request,
+                2026-09-08: "Athlete's substitution/scale for when they have
+                no 'barbell' selected is 'DBs', 50/35lb M/F") -- a fixed
+                convention, not derived from the athlete's own owned
+                dumbbell loads (unlike the rounded loads elsewhere), so it's
+                rendered as a flat suggestion rather than routed through the
+                resolver's load-rounding path. */}
+            <span className="hw-label" style={{ display: 'block', marginBottom: 8 }}>Try Instead:</span>
+            <span className="hw-pill hw-pill-dark">DBs, 50/35 LB (M/F)</span>
+          </div>
+        )}
       </div>
     );
   }
