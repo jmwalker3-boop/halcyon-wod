@@ -72,7 +72,7 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
           calendar_slots (
             id, date, day_type, target_modalities,
             workouts (
-              id, title, raw_text, is_benchmark, coach_notes, scaling_notes,
+              id, title, raw_text, is_benchmark, coach_notes, scaling_notes, result_type_override,
               workout_movements ( prescribed_distance_m, prescribed_calories, movements ( canonical_name, equipment, skill_category ) )
             )
           )
@@ -241,12 +241,19 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
           </div>
         )}
         {r.machineScaleOptions && r.machineScaleOptions.length > 0 && (
-          <div style={{ borderTop: '3px dashed var(--hw-ink)', padding: '12px 14px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {r.machineScaleOptions.map((o) => (
-              <span key={o.machine} className="hw-pill hw-pill-dark">
-                {o.unisex ? `${o.value}${o.unit === 'cal' ? ' CAL' : 'M'}` : `${o.male}/${o.female}${o.unit === 'cal' ? ' CAL' : 'M'}`} {o.machine.toUpperCase()}
-              </span>
-            ))}
+          <div style={{ borderTop: '3px dashed var(--hw-ink)', padding: '12px 14px' }}>
+            {/* "Try Instead:" (John's request, 2026-09-07: the bare pills
+                "didn't read as a substitution") -- these options had no
+                label at all before, so nothing told the athlete what
+                they were looking at. */}
+            <span className="hw-label" style={{ display: 'block', marginBottom: 8 }}>Try Instead:</span>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {r.machineScaleOptions.map((o) => (
+                <span key={o.machine} className="hw-pill hw-pill-dark">
+                  {o.unisex ? `${o.value}${o.unit === 'cal' ? ' CAL' : 'M'}` : `${o.male}/${o.female}${o.unit === 'cal' ? ' CAL' : 'M'}`} {o.machine.toUpperCase()}
+                </span>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -392,6 +399,7 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
             calendarSlotId={slot.id}
             movements={allMovementRows ?? []}
             tier={tierForSlot(slot)}
+            lockedResultType={slot.workouts.result_type_override}
           />
           <Link href={`/leaderboard/${slot.workouts.id}`} className="hw-btn hw-btn-dark" style={{ fontSize: 13, padding: 12 }}>
             The board →
