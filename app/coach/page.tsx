@@ -5,6 +5,7 @@ import Link from 'next/link';
 import LogoutButton from '@/components/LogoutButton';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import type { ResultType } from '@/lib/db/types';
 
 // Coach Deck (mockup screen 2d), v0. John's own description of the workflow
 // (2026-09-05): every Sunday, before the week becomes visible to athletes,
@@ -52,8 +53,17 @@ type Slot = {
     is_benchmark: boolean;
     coach_notes: string | null;
     scaling_notes: string | null;
+    result_type_override: ResultType | null;
     workout_movements: { movements: { canonical_name: string } | null }[];
   } | null;
+};
+
+const RESULT_TYPE_LABEL: Record<ResultType, string> = {
+  time: 'Time',
+  rounds_reps: 'Rounds + reps',
+  load: 'Weight',
+  cals: 'Cals',
+  reps: 'Reps',
 };
 
 const MODALITY_LABEL: Record<Modality, string> = { M: 'Monostructural', G: 'Gymnastic', W: 'Weightlifting' };
@@ -140,7 +150,7 @@ function CoachDeck() {
         .from('calendar_slots')
         .select(
           `id, date, day_type, target_modalities, override_reason,
-           workouts ( id, title, raw_text, is_benchmark, coach_notes, scaling_notes,
+           workouts ( id, title, raw_text, is_benchmark, coach_notes, scaling_notes, result_type_override,
              workout_movements ( movements ( canonical_name ) ) )`,
         )
         .gte('date', weekStart)
@@ -350,6 +360,7 @@ function DayCard({ label, slot }: { label: string; slot: Slot }) {
   const [rawText, setRawText] = useState(slot.workouts?.raw_text ?? '');
   const [coachNotes, setCoachNotes] = useState(slot.workouts?.coach_notes ?? '');
   const [scalingNotes, setScalingNotes] = useState(slot.workouts?.scaling_notes ?? '');
+  const [resultTypeOverride, setResultTypeOverride] = useState<ResultType | null>(slot.workouts?.result_type_override ?? null);
   const [note, setNote] = useState(slot.override_reason ?? '');
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -367,6 +378,7 @@ function DayCard({ label, slot }: { label: string; slot: Slot }) {
           raw_text: rawText || null,
           coach_notes: coachNotes || null,
           scaling_notes: scalingNotes || null,
+          result_type_override: resultTypeOverride,
         })
         .eq('id', slot.workouts.id);
       if (workoutError) {
@@ -482,6 +494,47 @@ function DayCard({ label, slot }: { label: string; slot: Slot }) {
                 resize: 'vertical',
               }}
             />
+
+            {/* Scoring lock (John's request, 2026-09-07: "allow the admin
+                to assign the scoring options for wods and not leave it up
+                to the athletes, it could be confusing") -- null keeps
+                ScoreForm's picker (athlete chooses); picking one of the
+                three locks it to that shape only. Only the shapes
+                ScoreForm actually implements are offered here -- 'cals'/
+                'reps' exist in the DB enum but have no form fields yet. */}
+            <span className="hw-label" style={{ display: 'block', marginTop: 10 }}>Scoring for athletes</span>
+            <div style={{ display: 'flex', marginTop: 6, border: '3px solid var(--hw-ink)', borderRadius: 999, overflow: 'hidden' }}>
+              {(
+                [
+                  { value: null, label: "ATHLETE'S CHOICE" },
+                  { value: 'time', label: 'TIME' },
+                  { value: 'rounds_reps', label: 'ROUNDS+REPS' },
+                  { value: 'load', label: 'WEIGHT' },
+                ] as { value: ResultType | null; label: string }[]
+              ).map((opt, i) => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => setResultTypeOverride(opt.value)}
+                  style={{
+                    flex: 1,
+                    border: 'none',
+                    borderLeft: i > 0 ? '3px solid var(--hw-ink)' : 'none',
+                    padding: '9px 4px',
+                    font: '700 9px/1.2 "Space Mono", monospace',
+                    background: resultTypeOverride === opt.value ? 'var(--hw-cyan)' : 'var(--hw-paper)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {resultTypeOverride && (
+              <p className="hw-muted" style={{ fontSize: 11, marginTop: 6, marginBottom: 0 }}>
+                Athletes will only be able to log a {RESULT_TYPE_LABEL[resultTypeOverride].toLowerCase()} score for this WOD.
+              </p>
+            )}
           </>
         )}
 
