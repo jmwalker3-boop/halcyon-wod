@@ -83,6 +83,10 @@ export interface Database {
           is_benchmark: boolean;
           coach_notes: string | null;
           scaling_notes: string | null;
+          // Coach-locked scoring shape (2026-09-07 migration) -- null means
+          // ScoreForm still lets the athlete pick from all three; a set
+          // value locks it to that one, so scoring isn't left ambiguous.
+          result_type_override: ResultType | null;
         };
         Insert: Partial<Database['public']['Tables']['workouts']['Row']> & { id?: string };
         Update: Partial<Database['public']['Tables']['workouts']['Row']>;
