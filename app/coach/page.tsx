@@ -54,6 +54,7 @@ type Slot = {
     coach_notes: string | null;
     scaling_notes: string | null;
     result_type_override: ResultType | null;
+    result_type_override_2: ResultType | null;
     workout_movements: { movements: { canonical_name: string } | null }[];
   } | null;
 };
@@ -150,7 +151,7 @@ function CoachDeck() {
         .from('calendar_slots')
         .select(
           `id, date, day_type, target_modalities, override_reason,
-           workouts ( id, title, raw_text, is_benchmark, coach_notes, scaling_notes, result_type_override,
+           workouts ( id, title, raw_text, is_benchmark, coach_notes, scaling_notes, result_type_override, result_type_override_2,
              workout_movements ( movements ( canonical_name ) ) )`,
         )
         .gte('date', weekStart)
