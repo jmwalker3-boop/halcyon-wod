@@ -87,6 +87,12 @@ export interface Database {
           // ScoreForm still lets the athlete pick from all three; a set
           // value locks it to that one, so scoring isn't left ambiguous.
           result_type_override: ResultType | null;
+          // Second coach-locked scoring shape (2026-09-11 migration), for
+          // WODs with two scored pieces (e.g. a strength piece + a metcon).
+          // Only meaningful when result_type_override is also set -- the
+          // athlete then picks between exactly these two shapes on
+          // ScoreForm instead of being locked to one or offered all three.
+          result_type_override_2: ResultType | null;
         };
         Insert: Partial<Database['public']['Tables']['workouts']['Row']> & { id?: string };
         Update: Partial<Database['public']['Tables']['workouts']['Row']>;
