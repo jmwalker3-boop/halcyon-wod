@@ -361,6 +361,12 @@ function DayCard({ label, slot }: { label: string; slot: Slot }) {
   const [coachNotes, setCoachNotes] = useState(slot.workouts?.coach_notes ?? '');
   const [scalingNotes, setScalingNotes] = useState(slot.workouts?.scaling_notes ?? '');
   const [resultTypeOverride, setResultTypeOverride] = useState<ResultType | null>(slot.workouts?.result_type_override ?? null);
+  // Second scoring type for days with two scored pieces (John's request,
+  // 2026-09-11: "the days with two pieces need two types of scoring").
+  // Only meaningful once resultTypeOverride itself is set -- the checkbox
+  // is hidden otherwise.
+  const [hasSecondScore, setHasSecondScore] = useState(!!slot.workouts?.result_type_override_2);
+  const [resultTypeOverride2, setResultTypeOverride2] = useState<ResultType | null>(slot.workouts?.result_type_override_2 ?? null);
   const [note, setNote] = useState(slot.override_reason ?? '');
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -379,6 +385,7 @@ function DayCard({ label, slot }: { label: string; slot: Slot }) {
           coach_notes: coachNotes || null,
           scaling_notes: scalingNotes || null,
           result_type_override: resultTypeOverride,
+          result_type_override_2: resultTypeOverride && hasSecondScore ? resultTypeOverride2 : null,
         })
         .eq('id', slot.workouts.id);
       if (workoutError) {
@@ -534,6 +541,63 @@ function DayCard({ label, slot }: { label: string; slot: Slot }) {
               <p className="hw-muted" style={{ fontSize: 11, marginTop: 6, marginBottom: 0 }}>
                 Athletes will only be able to log a {RESULT_TYPE_LABEL[resultTypeOverride].toLowerCase()} score for this WOD.
               </p>
+            )}
+
+            {/* Second scoring type (John's request, 2026-09-11: "the days
+                with two pieces need two types of scoring") -- only offered
+                once a first scoring type is locked, since ScoreForm needs a
+                concrete pair of shapes to choose between, not one locked
+                type plus an open-ended second. */}
+            {resultTypeOverride && (
+              <div style={{ marginTop: 10 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={hasSecondScore}
+                    onChange={(e) => setHasSecondScore(e.target.checked)}
+                  />
+                  <span className="hw-label" style={{ margin: 0 }}>This WOD has two scored pieces</span>
+                </label>
+                {hasSecondScore && (
+                  <>
+                    <span className="hw-label" style={{ display: 'block', marginTop: 8 }}>Second scoring type</span>
+                    <div style={{ display: 'flex', marginTop: 6, border: '3px solid var(--hw-ink)', borderRadius: 999, overflow: 'hidden' }}>
+                      {(
+                        [
+                          { value: 'time', label: 'TIME' },
+                          { value: 'rounds_reps', label: 'ROUNDS+REPS' },
+                          { value: 'load', label: 'WEIGHT' },
+                        ] as { value: ResultType; label: string }[]
+                      )
+                        .filter((opt) => opt.value !== resultTypeOverride)
+                        .map((opt, i) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setResultTypeOverride2(opt.value)}
+                            style={{
+                              flex: 1,
+                              border: 'none',
+                              borderLeft: i > 0 ? '3px solid var(--hw-ink)' : 'none',
+                              padding: '9px 4px',
+                              font: '700 9px/1.2 "Space Mono", monospace',
+                              background: resultTypeOverride2 === opt.value ? 'var(--hw-cyan)' : 'var(--hw-paper)',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                    </div>
+                    {resultTypeOverride2 && (
+                      <p className="hw-muted" style={{ fontSize: 11, marginTop: 6, marginBottom: 0 }}>
+                        Athletes will pick between {RESULT_TYPE_LABEL[resultTypeOverride].toLowerCase()} and{' '}
+                        {RESULT_TYPE_LABEL[resultTypeOverride2].toLowerCase()} for this WOD.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
             )}
           </>
         )}
