@@ -32,6 +32,7 @@ export default function ScoreForm({
   movements,
   tier = 'rx',
   lockedResultType = null,
+  lockedResultType2 = null,
 }: {
   workoutId: string;
   calendarSlotId: string | null;
@@ -48,7 +49,14 @@ export default function ScoreForm({
   // shapes matches what they did; a set value hides the picker entirely
   // and locks the form to that one shape.
   lockedResultType?: ResultType | null;
+  // Second coach-locked shape (John's request, 2026-09-11: "days with two
+  // pieces need two types of scoring"). Only meaningful when
+  // lockedResultType is also set -- with both present, the athlete picks
+  // between exactly these two shapes instead of a locked single shape or
+  // the full three-way picker.
+  lockedResultType2?: ResultType | null;
 }) {
+  const hasTwoLocked = !!(lockedResultType && lockedResultType2);
   const [open, setOpen] = useState(false);
   const [resultType, setResultType] = useState<ResultType>(lockedResultType ?? 'time');
   const [minutes, setMinutes] = useState('');
@@ -190,7 +198,28 @@ export default function ScoreForm({
     <form onSubmit={handleSubmit} className="hw-card" style={{ marginTop: 10 }}>
       <span className="hw-label">Log your score</span>
 
-      {lockedResultType ? (
+      {hasTwoLocked ? (
+        <div style={{ display: 'flex', marginTop: 10, border: '3px solid var(--hw-ink)', borderRadius: 999, overflow: 'hidden' }}>
+          {[lockedResultType, lockedResultType2].map((rt, i) => (
+            <button
+              key={rt}
+              type="button"
+              onClick={() => setResultType(rt as ResultType)}
+              style={{
+                flex: 1,
+                border: 'none',
+                borderLeft: i > 0 ? '3px solid var(--hw-ink)' : 'none',
+                padding: '10px 4px',
+                font: '700 10px/1 "Space Mono", monospace',
+                background: resultType === rt ? 'var(--hw-cyan)' : 'var(--hw-paper)',
+                cursor: 'pointer',
+              }}
+            >
+              {(RESULT_TYPE_LABEL[rt as ResultType] ?? rt).toUpperCase()}
+            </button>
+          ))}
+        </div>
+      ) : lockedResultType ? (
         <p className="hw-muted" style={{ fontSize: 11, marginTop: 8, marginBottom: 0 }}>
           Scoring for this WOD: <strong>{RESULT_TYPE_LABEL[lockedResultType] ?? lockedResultType}</strong>
         </p>
