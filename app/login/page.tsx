@@ -106,7 +106,7 @@ export default function LoginPage() {
           />
         </div>
         <div className="hw-h1" style={{ textAlign: 'center', fontSize: 28 }}>HalcyonWod</div>
-        <p className="hw-lede" style={{ textAlign: 'center' }}>Coach-programmed GPP, scaled to you.</p>
+        <p className="hw-lede" style={{ textAlign: 'center' }}>GPP workouts written by a CFL3 coach, scaled to you.</p>
 
         <div className="hw-card" style={{ marginTop: 24 }}>
           {status === 'sent' ? (
@@ -190,7 +190,7 @@ export default function LoginPage() {
                     className="hw-btn hw-btn-mustard"
                     style={{ marginTop: 14, fontSize: 15, padding: 14 }}
                   >
-                    {status === 'sending' ? 'Signing in…' : 'Sign in'}
+                    {status === 'sending' ? 'Signing inâ¦' : 'Sign in'}
                   </button>
                   <p className="hw-muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
                     No password set yet? Use the email link tab once, then set one from Setup.
@@ -224,7 +224,7 @@ export default function LoginPage() {
                     className="hw-btn hw-btn-mustard"
                     style={{ marginTop: 14, fontSize: 15, padding: 14 }}
                   >
-                    {status === 'sending' ? 'Sending…' : 'Send sign-in link'}
+                    {status === 'sending' ? 'Sendingâ¦' : 'Send sign-in link'}
                   </button>
                   {error && <p className="hw-error" style={{ fontSize: 13, marginTop: 12, marginBottom: 0 }}>{error}</p>}
                 </form>
