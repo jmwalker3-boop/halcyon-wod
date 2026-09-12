@@ -342,7 +342,14 @@ export default async function LeaderboardPage({
           renderMeta={renderMeta}
           scoreOf={(e) => e.result_value.seconds}
           formatAvg={(avg) => formatTime(Math.round(avg))}
-          renderScore={(e) => `${formatTime(e.result_value.seconds)}${e.rpe ? ` · RPE ${e.rpe}` : ''}`}
+          renderScore={(e) => {
+            // `intervals` is only present for interval workouts logged with
+            // more than one time (see ScoreForm's allowMultipleTimeScores)
+            // -- shows the per-interval breakdown alongside the total.
+            const intervals = e.result_value.intervals as number[] | undefined;
+            const breakdown = intervals?.length ? ` (${intervals.map(formatTime).join(', ')})` : '';
+            return `${formatTime(e.result_value.seconds)}${breakdown}${e.rpe ? ` · RPE ${e.rpe}` : ''}`;
+          }}
         />
 
         <Board
