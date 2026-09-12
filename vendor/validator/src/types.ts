@@ -143,6 +143,16 @@ export interface ValidationContext {
   training_block: TrainingBlockInfo;
   /** Trailing days strictly before calendar_slot.date, most recent first, enough to cover the widest window any rule needs (>= 3). */
   trailing_days: TrailingDay[];
+  /**
+   * Every OTHER day in the current training_block (any day_type -- on-days
+   * and the block's skill/recovery day) that already has a committed
+   * workout, with the literal movement names used that day. Scoped to this
+   * one block only -- deliberately not the rolling program-wide
+   * trailing_days window above, which spans the whole program_cycle and
+   * tracks patterns, not movement identity. Rule 8 is the only rule that
+   * reads this.
+   */
+  block_movements: { date: string; movement_names: string[] }[];
   /** Prior MetCon ties in the current 365-day window, for Rule 6. */
   prior_ties: PriorTie[];
   /** This athlete's/program's most recent rep-max records, for Rule 3. Callers filter to the recency window; the rule re-checks it anyway (see rule for why). */
