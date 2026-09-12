@@ -93,6 +93,11 @@ export interface Database {
           // athlete then picks between exactly these two shapes on
           // ScoreForm instead of being locked to one or offered all three.
           result_type_override_2: ResultType | null;
+          // Interval-workout flag (2026-09-12 migration). Only meaningful
+          // when 'time' is one of the locked scoring shapes above -- lets
+          // ScoreForm offer multiple time entries (one per interval)
+          // instead of a single time.
+          allow_multiple_time_scores: boolean;
         };
         Insert: Partial<Database['public']['Tables']['workouts']['Row']> & { id?: string };
         Update: Partial<Database['public']['Tables']['workouts']['Row']>;
