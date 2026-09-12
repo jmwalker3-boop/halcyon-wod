@@ -373,7 +373,8 @@ export default function AccountPage() {
 
   return (
     <main className="hw-shell">
-      <div className="hw-wrap" style={{ paddingBottom: 0 }}>
+      <TabBar position="top" />
+      <div className="hw-wrap" style={{ paddingTop: 90, paddingBottom: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
           <LogoutButton />
