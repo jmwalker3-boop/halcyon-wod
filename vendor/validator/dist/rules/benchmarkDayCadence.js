@@ -14,7 +14,10 @@
 // entirely in ruleConfig.ts's defaults (block_pattern and
 // on_days_by_block_type) -- this file's logic was already
 // config-parameterized, so no code change was needed here beyond this
-// comment.
+// comment. (That fix previously lived only in the compiled dist/*.js
+// output and not in this source or ruleConfig.ts -- both corrected
+// 2026-09-13, since rebuilding from source would otherwise have silently
+// reverted it.)
 //
 // Scope decision (flagged): this is a scaffolding rule, not really a
 // per-draft content rule -- it's checking that the *calendar/block
@@ -33,9 +36,7 @@
 //
 // Per the seeded config, benchmark blocks are exempt from Rule 7's modality
 // template (see rules/mgwBlockTemplate.ts) -- that's read from this same
-// config object, not duplicated here. Rule 8 (no movement repeat within
-// the block) applies to every block including this one -- no exemption --
-// see rules/noMovementRepeatInBlock.ts.
+// config object, not duplicated here.
 const RULE_NAME = 'Benchmark Day Cadence';
 export function checkBenchmarkDayCadence(_sequence, context, config) {
     const cfg = config[RULE_NAME];
