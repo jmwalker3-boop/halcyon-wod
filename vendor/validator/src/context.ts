@@ -121,6 +121,32 @@ export async function fetchContext(
     [slot.program_cycle_id, slot.date, trailingDaysLookback],
   );
 
+  // Block-scoped movement history for Rule 8: every OTHER day in this same
+  // training_block (any day_type -- deliberately not filtered to
+  // slot_in_block is not null, since the block's skill/recovery day is in
+  // scope too) that already has a committed workout, with the literal
+  // movement names used that day. Distinct from the trailing_days query
+  // above: that one spans the whole program_cycle by a day-count window and
+  // tracks patterns; this one is bounded by the block itself and tracks
+  // movement identity, which is what Rule 8 needs. "<>" rather than "<"
+  // deliberately -- a block's days aren't always committed in date order
+  // (e.g. re-generating an earlier day in an already-partially-committed
+  // block), and Rule 8's "no repeat anywhere in the block" doesn't care
+  // which direction in time the other occurrence falls.
+  const blockMovementsResult = await pool.query<{ date: string; movement_names: string[] | null }>(
+    `select cs.date::text,
+            array_remove(array_agg(distinct m.canonical_name), null)::text[] as movement_names
+       from calendar_slots cs
+       join workouts w on w.id = cs.workout_id
+       left join workout_movements wm on wm.workout_id = w.id
+       left join movements m on m.id = wm.movement_id
+      where cs.training_block_id = $1
+        and cs.date <> $2::date
+      group by cs.date
+      order by cs.date`,
+    [slot.training_block_id, slot.date],
+  );
+
   // Prior MetCon ties: segment_ties on committed workouts in this program cycle,
   // within the lookback window, resolved to (date, tie_type, source segment type, placement).
   const tiesResult = await pool.query<{
@@ -213,6 +239,7 @@ export async function fetchContext(
       })),
     },
     trailing_days: trailingResult.rows.map((r) => ({ date: r.date, day_type: r.day_type, patterns: r.patterns ?? [] })),
+    block_movements: blockMovementsResult.rows.map((r) => ({ date: r.date, movement_names: r.movement_names ?? [] })),
     prior_ties: tiesResult.rows,
     rep_maxes: repMaxResult.rows as RepMaxRecord[],
     movements_by_name: movementsByName,
