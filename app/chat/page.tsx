@@ -129,7 +129,8 @@ export default function ChatPage() {
 
   return (
     <>
-    <main className="hw-shell" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 90px)' }}>
+    <main className="hw-shell" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 180px)', marginTop: 90 }}>
+      <TabBar position="top" />
       <div className="hw-wrap" style={{ paddingBottom: 12, flex: 'none' }}>
         <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
         <div className="hw-h1" style={{ fontSize: 26, marginTop: 12 }}>Chat</div>
@@ -186,3 +187,4 @@ export default function ChatPage() {
     </>
   );
 }
+
