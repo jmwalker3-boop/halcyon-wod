@@ -319,7 +319,7 @@ function CoachDeck() {
                     <span style={{ font: '700 11px/1 "Space Mono", monospace', width: 112, flex: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {name.toUpperCase()}
                     </span>
-                    <div style={{ flex: 1, height: 12, background: 'var(--hw-ink)', opacity: 0.1, border: '2px solid var(--hw-ink)', borderRadius: 999, overflow: 'hidden' }}>
+                    <div  style={{ flex: 1, height: 12, background: 'var(--hw-ink)', opacity: 0.1, border: '2px solid var(--hw-ink)', borderRadius: 999, overflow: 'hidden' }}>
                       <div style={{ width: `${(count / max) * 100}%`, height: '100%', background: 'var(--hw-mustard)' }} />
                     </div>
                     <span className="hw-muted" style={{ font: '700 10px/1 "Space Mono", monospace' }}>{count}</span>
