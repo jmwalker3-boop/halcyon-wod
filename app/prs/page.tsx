@@ -71,7 +71,8 @@ export default function PrsPage() {
 
   return (
     <main className="hw-shell">
-      <div className="hw-wrap" style={{ paddingBottom: 100 }}>
+      <TabBar position="top" />
+      <div className="hw-wrap" style={{ paddingTop: 90, paddingBottom: 100 }}>
         <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
         <div className="hw-h1" style={{ fontSize: 26 }}>PRs</div>
         <p className="hw-lede">Every current best, by movement.</p>
