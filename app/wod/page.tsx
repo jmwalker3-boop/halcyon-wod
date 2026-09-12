@@ -72,7 +72,7 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
           calendar_slots (
             id, date, day_type, target_modalities,
             workouts (
-              id, title, raw_text, is_benchmark, coach_notes, scaling_notes, result_type_override, result_type_override_2,
+              id, title, raw_text, is_benchmark, coach_notes, scaling_notes, result_type_override, result_type_override_2, allow_multiple_time_scores,
               workout_movements ( prescribed_distance_m, prescribed_calories, movements ( canonical_name, equipment, skill_category ) )
             )
           )
@@ -414,6 +414,7 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
             tier={tierForSlot(slot)}
             lockedResultType={slot.workouts.result_type_override}
             lockedResultType2={slot.workouts.result_type_override_2}
+            allowMultipleTimeScores={slot.workouts.allow_multiple_time_scores}
           />
           <Link href={`/leaderboard/${slot.workouts.id}`} className="hw-btn hw-btn-dark" style={{ fontSize: 13, padding: 12 }}>
             The board →
