@@ -26,6 +26,11 @@ type Movement = { id: string; canonical_name: string };
 
 const RESULT_TYPE_LABEL: Record<string, string> = { time: 'Time', rounds_reps: 'Rounds + reps', load: 'Weight' };
 
+// One row of the time entry -- plain minutes/seconds strings, same shape
+// as the original single-time fields. An interval workout logs one of
+// these per interval instead of just one.
+type TimeEntry = { minutes: string; seconds: string };
+
 export default function ScoreForm({
   workoutId,
   calendarSlotId,
@@ -33,6 +38,7 @@ export default function ScoreForm({
   tier = 'rx',
   lockedResultType = null,
   lockedResultType2 = null,
+  allowMultipleTimeScores = false,
 }: {
   workoutId: string;
   calendarSlotId: string | null;
@@ -55,12 +61,18 @@ export default function ScoreForm({
   // between exactly these two shapes instead of a locked single shape or
   // the full three-way picker.
   lockedResultType2?: ResultType | null;
+  // Interval-workout flag (John's request, 2026-09-12: "add multiple time
+  // scores for interval workouts"). When true and 'time' is the active
+  // result type, shows a list of time entries plus an "add another
+  // interval" control instead of a single minutes/seconds pair.
+  allowMultipleTimeScores?: boolean;
 }) {
   const hasTwoLocked = !!(lockedResultType && lockedResultType2);
   const [open, setOpen] = useState(false);
   const [resultType, setResultType] = useState<ResultType>(lockedResultType ?? 'time');
   const [minutes, setMinutes] = useState('');
   const [seconds, setSeconds] = useState('');
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([{ minutes: '', seconds: '' }]);
   const [rounds, setRounds] = useState('');
   const [reps, setReps] = useState('');
   const [movementId, setMovementId] = useState('');
@@ -91,13 +103,31 @@ export default function ScoreForm({
 
     let resultValue: Record<string, unknown>;
     if (resultType === 'time') {
-      const totalSeconds = (Number(minutes) || 0) * 60 + (Number(seconds) || 0);
-      if (totalSeconds <= 0) {
-        setState('error');
-        setMessage('Enter a time.');
-        return;
+      if (allowMultipleTimeScores) {
+        const intervalSeconds = timeEntries
+          .map((t) => (Number(t.minutes) || 0) * 60 + (Number(t.seconds) || 0))
+          .filter((s) => s > 0);
+        if (intervalSeconds.length === 0) {
+          setState('error');
+          setMessage('Enter at least one interval time.');
+          return;
+        }
+        const totalSeconds = intervalSeconds.reduce((a, b) => a + b, 0);
+        // `seconds` stays a single total so existing sorting/display code
+        // (leaderboard, dashboard) keeps working unchanged; `intervals`
+        // carries the individual times for anything that wants the
+        // breakdown. Only added when there's more than one -- a single
+        // entry logs identically to the non-interval case.
+        resultValue = intervalSeconds.length > 1 ? { seconds: totalSeconds, intervals: intervalSeconds } : { seconds: totalSeconds };
+      } else {
+        const totalSeconds = (Number(minutes) || 0) * 60 + (Number(seconds) || 0);
+        if (totalSeconds <= 0) {
+          setState('error');
+          setMessage('Enter a time.');
+          return;
+        }
+        resultValue = { seconds: totalSeconds };
       }
-      resultValue = { seconds: totalSeconds };
     } else if (resultType === 'rounds_reps') {
       if (!rounds && !reps) {
         setState('error');
@@ -252,7 +282,7 @@ export default function ScoreForm({
         </div>
       )}
 
-      {resultType === 'time' && (
+      {resultType === 'time' && !allowMultipleTimeScores && (
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
           <input
             type="number"
@@ -271,6 +301,62 @@ export default function ScoreForm({
             onChange={(e) => setSeconds(e.target.value)}
             style={inputStyle}
           />
+        </div>
+      )}
+
+      {/* Interval workout (John's request, 2026-09-12: "add multiple time
+          scores for interval workouts") -- one Min/Sec row per interval,
+          with an "add another" control instead of the single pair above. */}
+      {resultType === 'time' && allowMultipleTimeScores && (
+        <div style={{ marginTop: 12 }}>
+          {timeEntries.map((entry, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8, marginTop: i > 0 ? 8 : 0, alignItems: 'center' }}>
+              <span className="hw-muted" style={{ fontSize: 11, width: 20, flexShrink: 0 }}>#{i + 1}</span>
+              <input
+                type="number"
+                min={0}
+                placeholder="Min"
+                value={entry.minutes}
+                onChange={(e) => {
+                  const next = [...timeEntries];
+                  next[i] = { ...next[i]!, minutes: e.target.value };
+                  setTimeEntries(next);
+                }}
+                style={inputStyle}
+              />
+              <input
+                type="number"
+                min={0}
+                max={59}
+                placeholder="Sec"
+                value={entry.seconds}
+                onChange={(e) => {
+                  const next = [...timeEntries];
+                  next[i] = { ...next[i]!, seconds: e.target.value };
+                  setTimeEntries(next);
+                }}
+                style={inputStyle}
+              />
+              {timeEntries.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setTimeEntries(timeEntries.filter((_, j) => j !== i))}
+                  aria-label={`Remove interval ${i + 1}`}
+                  style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, padding: '0 4px', flexShrink: 0 }}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => setTimeEntries([...timeEntries, { minutes: '', seconds: '' }])}
+            className="hw-pill hw-pill-outline"
+            style={{ marginTop: 8, border: '2px solid var(--hw-ink)', cursor: 'pointer' }}
+          >
+            + Add another interval
+          </button>
         </div>
       )}
 
