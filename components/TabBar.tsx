@@ -73,8 +73,20 @@ function AccountIcon({ size }: { size: number }) {
   );
 }
 
-export default function TabBar({ boardHref }: { boardHref?: string }) {
+export default function TabBar({
+  boardHref,
+  position = 'bottom',
+}: {
+  boardHref?: string;
+  // Locked top banner (John's request, 2026-09-12: "a locked in navigation
+  // banner on top to mirror the bottom dashboard") -- same items, same
+  // active-state logic, just pinned to the top of the viewport instead of
+  // the bottom, with the raised WOD button poking down into the page
+  // content below the bar instead of up above it.
+  position?: 'top' | 'bottom';
+}) {
   const pathname = usePathname();
+  const isTop = position === 'top';
 
   const items: { key: string; label: string; href: string; Icon: (props: { size: number }) => React.JSX.Element }[] = [
     { key: 'board', label: 'Board', href: boardHref ?? '/board', Icon: BoardIcon },
@@ -96,14 +108,14 @@ export default function TabBar({ boardHref }: { boardHref?: string }) {
         position: 'fixed',
         left: 0,
         right: 0,
-        bottom: 0,
+        ...(isTop ? { top: 0 } : { bottom: 0 }),
         zIndex: 30,
         display: 'flex',
         justifyContent: 'space-around',
-        alignItems: 'flex-end',
-        padding: '10px 8px 20px',
+        alignItems: isTop ? 'flex-start' : 'flex-end',
+        padding: isTop ? '14px 8px 10px' : '10px 8px 20px',
         background: 'var(--hw-paper)',
-        borderTop: '4px solid var(--hw-ink)',
+        ...(isTop ? { borderBottom: '4px solid var(--hw-ink)' } : { borderTop: '4px solid var(--hw-ink)' }),
       }}
     >
       {items.map((item) => {
@@ -136,7 +148,7 @@ export default function TabBar({ boardHref }: { boardHref?: string }) {
                 color: isWod ? 'var(--hw-ink)' : active ? 'var(--hw-mustard)' : 'var(--hw-ink)',
                 border: '3px solid var(--hw-ink)',
                 boxShadow: isWod ? '3px 3px 0 var(--hw-ink)' : 'none',
-                marginTop: isWod ? -16 : 0,
+                ...(isWod ? (isTop ? { marginBottom: -16 } : { marginTop: -16 }) : {}),
               }}
             >
               <Icon size={isWod ? 30 : 16} />
