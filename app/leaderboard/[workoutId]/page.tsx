@@ -296,7 +296,8 @@ export default async function LeaderboardPage({
 
   return (
     <main className="hw-shell">
-      <div className="hw-wrap" style={{ paddingBottom: 100 }}>
+      <TabBar position="top" boardHref={`/leaderboard/${workoutId}`} />
+      <div className="hw-wrap" style={{ paddingTop: 90, paddingBottom: 100 }}>
         <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
         <div className="hw-h1" style={{ fontSize: 26 }}>{workout?.title ?? 'THE BOARD'}</div>
         <span className="hw-eyebrow" style={{ marginTop: 10, display: 'inline-block' }}>
