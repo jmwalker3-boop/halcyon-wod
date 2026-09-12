@@ -26,22 +26,21 @@ export const DEFAULT_RULE_CONFIG = {
     },
     'Benchmark Day Cadence': {
         active: true,
-        // Corrected 2026-09-04: a 3-block macro-cycle, every block shaped
-        // 3-on-days + 1-off-day. The first block's on-days are Benchmark then
-        // 2 ordinary on-days ("Benchmark, 2-1" is John's label for that mix,
-        // not a literal 2-on-day block) -- the Benchmark itself is folded into
-        // that block's "3", so benchmark blocks need exactly 3 on-days too, the
-        // same as the other two. 3 blocks x 4 days = 12 days/cycle, so the next
-        // Benchmark lands on day 13 with zero drift. 'short' (2-on-day) blocks
-        // no longer appear anywhere in this rotation -- that block_type still
-        // exists in the schema (block_type_enum) but isn't produced by this
-        // cadence as corrected.
+        // Corrected 2026-09-04 (John): a 3-block macro-cycle, every block
+        // shaped 3-on-days + 1-off-day. The first block's on-days are
+        // Benchmark then 2 ordinary on-days ("Benchmark, 2-1" is John's label
+        // for that mix, not a literal 2-on-day block) -- the Benchmark itself
+        // is folded into that block's "3," so benchmark blocks need exactly 3
+        // on-days too, same as the other two. 3 blocks x 4 days = 12
+        // days/cycle, so the next Benchmark lands on day 13 with zero drift.
+        // 'short' (2-on-day) blocks no longer appear anywhere in this rotation
+        // -- that block_type still exists in the schema (block_type_enum) but
+        // isn't produced by this cadence as corrected. This fix previously
+        // lived only in the compiled dist/*.js output, not here -- rebuilding
+        // from this source would have silently reverted it; fixed 2026-09-13.
         block_pattern: ['benchmark', 'standard', 'standard'],
         on_days_by_block_type: { benchmark: 3, standard: 3 },
         exempt_from_modality_template: true,
-    },
-    'No Movement Repeat Within a 3-1 Block': {
-        active: true,
     },
     'MetCon-Tied Variance': {
         active: true,
@@ -53,9 +52,22 @@ export const DEFAULT_RULE_CONFIG = {
     'MGW Block Template': {
         active: true,
         lead_rotation: ['M', 'G', 'W'],
-        // Reversal trigger is still an open question in the schema doc (Rule 7)
-        // -- see rules/mgwBlockTemplate.ts for how the validator handles that
-        // ambiguity today rather than guessing at an unconfirmed trigger.
+        // Corrected 2026-09-13 (John): the lead modality is the solo modality
+        // on the single-modality day and is ABSENT on the double-modality day
+        // (not carried through every day, as this used to be modeled) -- see
+        // rules/mgwBlockTemplate.ts for the full six-letter-order rotation
+        // (ascending: MGW/GWM/WMG, descending: MWG/WGM/GMW) this drives. Still
+        // open: no fixed cadence for how often a block draws from the
+        // descending family instead of ascending -- John's framing is "1-2-3
+        // coupled with an occasional 3-2-1," a feel rather than a rate.
+    },
+    'No Movement Repeat Within a 3-1 Block': {
+        active: true,
+        // Restored 2026-09-13: existed only as hand-patched compiled
+        // dist/*.js output, never written back to this file or to any
+        // .ts source -- a sync of the MGW/Benchmark-Cadence fixes briefly
+        // deleted it outright. Config restored here; real .ts source
+        // reconstructed in src/ so a future rebuild can't drop it again.
     },
 };
 export function mergeRuleConfig(fromDb) {
