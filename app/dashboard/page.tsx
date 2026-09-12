@@ -322,7 +322,8 @@ export default async function DashboardPage() {
 
   return (
     <main className="hw-shell">
-      <div className="hw-wrap" style={{ paddingBottom: 100 }}>
+      <TabBar position="top" />
+      <div className="hw-wrap" style={{ paddingTop: 90, paddingBottom: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Link href="/dashboard" style={{ flex: 'none', lineHeight: 0 }}>
             <img src="/logo-dot.png" alt="HalcyonWod" style={{ width: 52, height: 52, objectFit: 'contain' }} />
