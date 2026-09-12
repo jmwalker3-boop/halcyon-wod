@@ -40,4 +40,3 @@ export function computeBannedPatterns(context: ValidationContext, config: RuleCo
   // day over the limit.
   return [...counts.entries()].filter(([, count]) => count >= maxRepeats).map(([pattern]) => pattern);
 }
-
