@@ -18,4 +18,3 @@ export function daysBetween(a: string, b: string): number {
   const msPerDay = 24 * 60 * 60 * 1000;
   return Math.round((new Date(a).getTime() - new Date(b).getTime()) / msPerDay);
 }
-
