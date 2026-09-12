@@ -55,6 +55,7 @@ type Slot = {
     scaling_notes: string | null;
     result_type_override: ResultType | null;
     result_type_override_2: ResultType | null;
+    allow_multiple_time_scores: boolean;
     workout_movements: { movements: { canonical_name: string } | null }[];
   } | null;
 };
@@ -151,7 +152,7 @@ function CoachDeck() {
         .from('calendar_slots')
         .select(
           `id, date, day_type, target_modalities, override_reason,
-           workouts ( id, title, raw_text, is_benchmark, coach_notes, scaling_notes, result_type_override, result_type_override_2,
+           workouts ( id, title, raw_text, is_benchmark, coach_notes, scaling_notes, result_type_override, result_type_override_2, allow_multiple_time_scores,
              workout_movements ( movements ( canonical_name ) ) )`,
         )
         .gte('date', weekStart)
@@ -319,7 +320,7 @@ function CoachDeck() {
                     <span style={{ font: '700 11px/1 "Space Mono", monospace', width: 112, flex: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {name.toUpperCase()}
                     </span>
-                    <div  style={{ flex: 1, height: 12, background: 'var(--hw-ink)', opacity: 0.1, border: '2px solid var(--hw-ink)', borderRadius: 999, overflow: 'hidden' }}>
+                    <div style={{ flex: 1, height: 12, background: 'var(--hw-ink)', opacity: 0.1, border: '2px solid var(--hw-ink)', borderRadius: 999, overflow: 'hidden' }}>
                       <div style={{ width: `${(count / max) * 100}%`, height: '100%', background: 'var(--hw-mustard)' }} />
                     </div>
                     <span className="hw-muted" style={{ font: '700 10px/1 "Space Mono", monospace' }}>{count}</span>
@@ -368,9 +369,18 @@ function DayCard({ label, slot }: { label: string; slot: Slot }) {
   // is hidden otherwise.
   const [hasSecondScore, setHasSecondScore] = useState(!!slot.workouts?.result_type_override_2);
   const [resultTypeOverride2, setResultTypeOverride2] = useState<ResultType | null>(slot.workouts?.result_type_override_2 ?? null);
+  // Interval-workout flag (John's request, 2026-09-12: "add multiple time
+  // scores for interval workouts"). Only meaningful while 'time' is one of
+  // the two locked scoring shapes -- see the checkbox below.
+  const [allowMultipleTimeScores, setAllowMultipleTimeScores] = useState(!!slot.workouts?.allow_multiple_time_scores);
   const [note, setNote] = useState(slot.override_reason ?? '');
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [error, setError] = useState<string | null>(null);
+
+  // 'time' can only ever occupy one of the two locked-score slots at once
+  // (the second-scoring-type picker excludes whatever the first already
+  // is), so checking both covers either position.
+  const timeIsLocked = resultTypeOverride === 'time' || (hasSecondScore && resultTypeOverride2 === 'time');
 
   async function handleSave() {
     setSaveState('saving');
@@ -387,6 +397,7 @@ function DayCard({ label, slot }: { label: string; slot: Slot }) {
           scaling_notes: scalingNotes || null,
           result_type_override: resultTypeOverride,
           result_type_override_2: resultTypeOverride && hasSecondScore ? resultTypeOverride2 : null,
+          allow_multiple_time_scores: timeIsLocked && allowMultipleTimeScores,
         })
         .eq('id', slot.workouts.id);
       if (workoutError) {
@@ -597,6 +608,30 @@ function DayCard({ label, slot }: { label: string; slot: Slot }) {
                       </p>
                     )}
                   </>
+                )}
+              </div>
+            )}
+
+            {/* Interval-workout flag (John's request, 2026-09-12: "add
+                multiple time scores for interval workouts... when 'time'
+                is selected as a scoring option, allow check marks for
+                additional scores to be added"). Only offered once 'time'
+                is actually locked as one of the scoring shapes -- it has
+                nothing to attach to otherwise. */}
+            {timeIsLocked && (
+              <div style={{ marginTop: 10 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={allowMultipleTimeScores}
+                    onChange={(e) => setAllowMultipleTimeScores(e.target.checked)}
+                  />
+                  <span className="hw-label" style={{ margin: 0 }}>Interval workout (allow multiple time scores)</span>
+                </label>
+                {allowMultipleTimeScores && (
+                  <p className="hw-muted" style={{ fontSize: 11, marginTop: 6, marginBottom: 0 }}>
+                    Athletes will be able to add a time for each interval instead of just one.
+                  </p>
                 )}
               </div>
             )}
