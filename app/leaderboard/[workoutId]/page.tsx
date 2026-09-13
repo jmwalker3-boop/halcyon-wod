@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import LikeButton from '@/components/LikeButton';
 import Avatar from '@/components/Avatar';
 import TabBar from '@/components/TabBar';
+import TopBar from '@/components/TopBar';
 import type { AthleteSkillLevel } from '@/lib/db/types';
 
 // "The Board" (mockup screen 2c). Grouped by result_type rather than forced
@@ -296,7 +297,7 @@ export default async function LeaderboardPage({
 
   return (
     <main className="hw-shell">
-      <TabBar position="top" boardHref={`/leaderboard/${workoutId}`} />
+      <TopBar />
       <div className="hw-wrap" style={{ paddingTop: 90, paddingBottom: 100 }}>
         <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
         <div className="hw-h1" style={{ fontSize: 26 }}>{workout?.title ?? 'THE BOARD'}</div>
