@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import ScoreForm from '@/components/ScoreForm';
 import WodTabs from '@/components/WodTabs';
 import TabBar from '@/components/TabBar';
+import TopBar from '@/components/TopBar';
 import { SKILL_CATEGORIES } from '@/lib/equipment';
 import {
   normalizeEquipmentTag,
@@ -148,7 +149,7 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
         equipment: wm.movements.equipment ?? [],
         skillCategory: wm.movements.skill_category ?? undefined,
         prescribedDistanceM: wm.prescribed_distance_m ?? undefined,
-        prescribedCalories: wm.prescribed_calories ?? undefined,
+        prescribedCalories: wm.prescribed_caories ?? undefined,
       }));
     return resolveWorkoutForAthlete(toResolve, owned, rx);
   }
@@ -303,7 +304,7 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
   if (!daySlot || !daySlot.slot.workouts) {
     return (
       <main className="hw-shell">
-        <TabBar position="top" />
+        <TopBar />
         <div className="hw-wrap" style={{ paddingTop: 90, paddingBottom: 100 }}>
           <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
           <div className="hw-h1" style={{ fontSize: 26, marginTop: 12 }}>{dayTitle}</div>
@@ -336,7 +337,7 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
 
   return (
     <main className="hw-shell">
-      <TabBar position="top" />
+      <TopBar />
       <div className="hw-wrap" style={{ paddingTop: 90, paddingBottom: 100 }}>
         <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
         {dayNav}
