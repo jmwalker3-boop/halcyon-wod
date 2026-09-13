@@ -49,9 +49,17 @@ export default function TopBar() {
       </Link>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         {isAdmin && (
-          <Link href="/admin" className="hw-link-back">
-            Admin
-          </Link>
+          <>
+            <Link href="/admin" className="hw-link-back">
+              Admin
+            </Link>
+            <Link href="/coach" className="hw-link-back">
+              Coach Deck
+            </Link>
+            <Link href="/dashboard" className="hw-link-back">
+              Today&apos;s WOD
+            </Link>
+          </>
         )}
         <LogoutButton />
       </div>
