@@ -281,6 +281,7 @@ export default async function DashboardPage() {
       gaps = resolved.filter((r) => r.status === 'needs_substitution');
     }
   }
+
   // Mini podium for the Board card (John's request, 2026-09-08: "make sure
   // the 'board' card contains the graphic, not just a link") -- same
   // podium visual language as /leaderboard's own top-3, just compact.
