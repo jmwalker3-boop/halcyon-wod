@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import TabBar from '@/components/TabBar';
+import TopBar from '@/components/TopBar';
 import {
   normalizeEquipmentTag,
   resolveWorkoutForAthlete,
@@ -280,7 +281,6 @@ export default async function DashboardPage() {
       gaps = resolved.filter((r) => r.status === 'needs_substitution');
     }
   }
-
   // Mini podium for the Board card (John's request, 2026-09-08: "make sure
   // the 'board' card contains the graphic, not just a link") -- same
   // podium visual language as /leaderboard's own top-3, just compact.
@@ -322,7 +322,7 @@ export default async function DashboardPage() {
 
   return (
     <main className="hw-shell">
-      <TabBar position="top" />
+      <TopBar />
       <div className="hw-wrap" style={{ paddingTop: 90, paddingBottom: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Link href="/dashboard" style={{ flex: 'none', lineHeight: 0 }}>
