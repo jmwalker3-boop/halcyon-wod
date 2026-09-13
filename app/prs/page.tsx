@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import Avatar from '@/components/Avatar';
 import TabBar from '@/components/TabBar';
+import TopBar from '@/components/TopBar';
 
 // Searchable PR log (John's request, 2026-09-07: "auto detects a PR and
 // should be searchable"). personal_records already gets a new row from
@@ -71,7 +72,7 @@ export default function PrsPage() {
 
   return (
     <main className="hw-shell">
-      <TabBar position="top" />
+      <TopBar />
       <div className="hw-wrap" style={{ paddingTop: 90, paddingBottom: 100 }}>
         <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
         <div className="hw-h1" style={{ fontSize: 26 }}>PRs</div>
