@@ -149,7 +149,7 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
         equipment: wm.movements.equipment ?? [],
         skillCategory: wm.movements.skill_category ?? undefined,
         prescribedDistanceM: wm.prescribed_distance_m ?? undefined,
-        prescribedCalories: wm.prescribed_caories ?? undefined,
+        prescribedCalories: wm.prescribed_calories ?? undefined,
       }));
     return resolveWorkoutForAthlete(toResolve, owned, rx);
   }
