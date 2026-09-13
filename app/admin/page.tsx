@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import LogoutButton from '@/components/LogoutButton';
+import TopBar from '@/components/TopBar';
 import { createClient } from '@/lib/supabase/client';
 
 // Minimal admin tool (John's own scoping, 2026-09-06): "let's build that
@@ -209,7 +209,8 @@ export default function AdminPage() {
   if (loadState === 'loading') {
     return (
       <main className="hw-shell">
-        <div className="hw-wrap">
+        <TopBar />
+        <div className="hw-wrap" style={{ paddingTop: 90 }}>
           <p className="hw-muted">Loading…</p>
         </div>
       </main>
@@ -219,7 +220,8 @@ export default function AdminPage() {
   if (loadState === 'forbidden') {
     return (
       <main className="hw-shell">
-        <div className="hw-wrap">
+        <TopBar />
+        <div className="hw-wrap" style={{ paddingTop: 90 }}>
           <Link href="/dashboard" className="hw-link-back">← Back</Link>
           <p style={{ marginTop: 16 }}>Admin only.</p>
         </div>
@@ -230,7 +232,8 @@ export default function AdminPage() {
   if (loadState === 'error') {
     return (
       <main className="hw-shell">
-        <div className="hw-wrap">
+        <TopBar />
+        <div className="hw-wrap" style={{ paddingTop: 90 }}>
           <p className="hw-error">{error}</p>
         </div>
       </main>
@@ -239,18 +242,9 @@ export default function AdminPage() {
 
   return (
     <main className="hw-shell">
-      <div className="hw-wrap">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link href="/dashboard" style={{ flex: 'none', lineHeight: 0 }}>
-            <img src="/logo-dot.png" alt="HalcyonWod" style={{ width: 44, height: 44, objectFit: 'contain' }} />
-          </Link>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <span className="hw-eyebrow">Admin</span>
-          </div>
-          <Link href="/coach" className="hw-link-back">Coach Deck</Link>
-          <Link href="/dashboard" className="hw-link-back">Today&apos;s WOD</Link>
-          <LogoutButton />
-        </div>
+      <TopBar />
+      <div className="hw-wrap" style={{ paddingTop: 90 }}>
+        <span className="hw-eyebrow">Admin</span>
         <div className="hw-h1" style={{ fontSize: 26, color: 'var(--hw-ink)', textShadow: 'none', marginTop: 12 }}>
           Enroll an Athlete
         </div>
