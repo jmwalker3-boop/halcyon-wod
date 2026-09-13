@@ -5,6 +5,7 @@ import Link from 'next/link';
 import LogoutButton from '@/components/LogoutButton';
 import { createClient } from '@/lib/supabase/client';
 import TabBar from '@/components/TabBar';
+import TopBar from '@/components/TopBar';
 import { EQUIPMENT_OPTIONS, SKILL_CATEGORIES, LEVELS, type SkillCategoryKey, type SkillLevelValue } from '@/lib/equipment';
 
 // Consolidated account hub (John's request, 2026-09-07: "we should have an
@@ -373,7 +374,7 @@ export default function AccountPage() {
 
   return (
     <main className="hw-shell">
-      <TabBar position="top" />
+      <TopBar />
       <div className="hw-wrap" style={{ paddingTop: 90, paddingBottom: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
