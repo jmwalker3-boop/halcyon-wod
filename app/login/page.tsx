@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 
 // Magic-link-only originally, deliberately -- no password field, so there
@@ -195,6 +196,9 @@ export default function LoginPage() {
                   <p className="hw-muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
                     No password set yet? Use the email link tab once, then set one from Setup.
                   </p>
+                  <Link href="/forgot-password" className="hw-link-back" style={{ display: 'inline-block', marginTop: 8, fontSize: 12 }}>
+                    Forgot password?
+                  </Link>
                   {error && <p className="hw-error" style={{ fontSize: 13, marginTop: 12, marginBottom: 0 }}>{error}</p>}
                 </form>
               ) : (
