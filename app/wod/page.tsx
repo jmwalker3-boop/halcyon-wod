@@ -95,7 +95,7 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
     supabase.from('profile_equipment').select('equipment_tag').eq('profile_id', user.id),
     supabase.from('profile_equipment_loads').select('equipment_tag, load_value, unit, quantity').eq('profile_id', user.id),
     supabase.from('profile_skill_levels').select('skill_category, level').eq('profile_id', user.id),
-    supabase.from('movements').select('id, canonical_name, equipment'),
+    supabase.from('movements').select('id, canonical_name, equipment').order('canonical_name', { ascending: true }),
     supabase.from('movement_scales').select('movement_id, tier, scale_movement_id'),
     supabase.from('movement_equipment_substitutes').select('movement_id, substitute_id'),
   ]);
