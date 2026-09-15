@@ -1,9 +1,23 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Black Box Method',
   description: 'Doctrine-driven GPP programming.',
+  // PWA home-screen icon (John's request, 2026-09-15): the HalcyonWod dot
+  // sticker badge, see app/manifest.ts for the full icon set and why it's
+  // composited onto a solid background rather than shipped transparent.
+  icons: {
+    icon: [
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#22E0D6',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
