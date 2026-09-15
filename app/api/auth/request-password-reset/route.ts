@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 
   const pool = getPool();
   const { rows } = await pool.query(
-    `select id, coalesce(p.display_name, 'there') as display_name
+    `select u.id, coalesce(p.display_name, 'there') as display_name
      from auth.users u
      left join public.profiles p on p.id = u.id
      where u.email = $1`,
