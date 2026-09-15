@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     );
     await pool.query(
       `insert into public.email_outbox (template, to_email, data)
-       values ('password_reset', $1, jsonb_build_object('resetUrl', $2, 'displayName', $3))`,
+       values ('password_reset', $1, jsonb_build_object('resetUrl', $2::text, 'displayName', $3::text))`,
       [trimmedEmail, resetUrl, rows[0].display_name],
     );
   }
