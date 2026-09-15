@@ -223,8 +223,10 @@ export interface Database {
         Row: {
           id: string;
           profile_id: string;
-          movement_id: string;
+          movement_id: string | null;
+          workout_id: string | null;
           record_type: string;
+          result_type: 'load' | 'time' | 'rounds_reps';
           value: number;
           achieved_at: string;
           workout_log_id: string | null;
@@ -232,8 +234,10 @@ export interface Database {
         Insert: {
           id?: string;
           profile_id: string;
-          movement_id: string;
+          movement_id?: string | null;
+          workout_id?: string | null;
           record_type: string;
+          result_type?: 'load' | 'time' | 'rounds_reps';
           value: number;
           achieved_at: string;
           workout_log_id?: string | null;
