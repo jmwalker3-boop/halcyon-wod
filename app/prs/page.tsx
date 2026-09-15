@@ -8,6 +8,25 @@ import TabBar from '@/components/TabBar';
 import TopBar from '@/components/TopBar';
 import AddPrForm from '@/components/AddPrForm';
 
+// Raised sticker badge (John's request, 2026-09-15: "the fun stuff like the
+// 'PR' skull sticker" -- the /prs page had none of the raised-badge sticker
+// treatment TabBar's WOD tab uses). Same visual recipe as that skull badge
+// (components/TabBar.tsx: mustard circle, thick ink border, offset
+// box-shadow) rather than the WOD tab itself, since the bottom nav's single
+// raised slot is locked to WOD; this is a page-header flourish instead.
+function TrophyIcon({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M6 3h12v6c0 3.3-2.7 6-6 6s-6-2.7-6-6V3z" />
+      <path d="M6 4H3a1 1 0 0 0-1 1c0 3 2 5 4.3 5.4A6 6 0 0 1 6 9.5V4z" />
+      <path d="M18 4h3a1 1 0 0 1 1 1c0 3-2 5-4.3 5.4A6 6 0 0 0 18 9.5V4z" />
+      <rect x="10.5" y="13" width="3" height="6" rx="0.5" />
+      <rect x="9" y="18" width="6" height="2" rx="0.5" />
+      <rect x="7" y="20" width="10" height="2" rx="0.5" />
+    </svg>
+  );
+}
+
 // Searchable PR log (John's request, 2026-09-07: "auto detects a PR and
 // should be searchable"; extended 2026-09-15 to also support benchmark-WOD
 // PRs manually added via AddPrForm, not just movement PRs auto-detected by
@@ -102,7 +121,28 @@ export default function PrsPage() {
       <TopBar />
       <div className="hw-wrap" style={{ paddingTop: 90, paddingBottom: 100 }}>
         <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
-        <div className="hw-h1" style={{ fontSize: 26 }}>PRs</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
+          <span
+            aria-hidden="true"
+            style={{
+              width: 48,
+              height: 48,
+              flexShrink: 0,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'var(--hw-mustard)',
+              color: 'var(--hw-ink)',
+              border: '3px solid var(--hw-ink)',
+              boxShadow: '3px 3px 0 var(--hw-ink)',
+              transform: 'rotate(-6deg)',
+            }}
+          >
+            <TrophyIcon size={26} />
+          </span>
+          <div className="hw-h1" style={{ fontSize: 26 }}>PRs</div>
+        </div>
         <p className="hw-lede">Every current best, by movement or benchmark.</p>
 
         <AddPrForm onAdded={load} />
