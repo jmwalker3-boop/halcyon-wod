@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Black Box Method',
+  title: 'HalcyonWod',
   description: 'Doctrine-driven GPP programming.',
   // PWA home-screen icon (John's request, 2026-09-15): the HalcyonWod dot
   // sticker badge, see app/manifest.ts for the full icon set and why it's
