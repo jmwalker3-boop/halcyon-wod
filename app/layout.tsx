@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'HalcyonWod',
-  description: 'Doctrine-driven GPP programming.',
+  description: 'Real programming, scaled to your equipment and your numbers.',
   // PWA home-screen icon (John's request, 2026-09-15): the HalcyonWod dot
   // sticker badge, see app/manifest.ts for the full icon set and why it's
   // composited onto a solid background rather than shipped transparent.
