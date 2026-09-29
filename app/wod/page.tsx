@@ -71,7 +71,7 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
         program_cycles (
           start_date, length_days,
           calendar_slots (
-            id, date, day_type, target_modalities, status,
+            id, date, day_type, target_modalities, status, override_reason,
             workouts (
               id, title, raw_text, is_benchmark, coach_notes, scaling_notes, result_type_override, result_type_override_2, allow_multiple_time_scores,
               workout_movements ( prescribed_distance_m, prescribed_calories, movements ( canonical_name, equipment, skill_category ) )
@@ -303,15 +303,33 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
   );
 
   if (!daySlot || !daySlot.slot.workouts) {
+    // A Recovery day intentionally has no workout row -- that's not a gap,
+    // it's the program working as designed, so it reads as "Rest Day" (plus
+    // whatever note the coach left in Coach Deck, e.g. "get out and play")
+    // rather than "Nothing scheduled," which read like a day was forgotten
+    // (John's report, 2026-09-29). A slot that's missing entirely (not
+    // enrolled, out of range, not yet approved) or a Training day that just
+    // hasn't been generated yet still gets the original message -- those
+    // really are gaps.
+    const isRestDay = daySlot?.slot?.day_type === 'Recovery';
     return (
       <main className="hw-shell">
         <TopBar />
         <div className="hw-wrap" style={{ paddingTop: 90, paddingBottom: 100 }}>
           <Link href="/dashboard" className="hw-link-back">← Back to today</Link>
-          <div className="hw-h1" style={{ fontSize: 26, marginTop: 12 }}>{dayTitle}</div>
+          <div className="hw-h1" style={{ fontSize: 26, marginTop: 12 }}>{isRestDay ? 'Rest Day' : dayTitle}</div>
           {dayNav}
           <div className="hw-card" style={{ marginTop: 16 }}>
-            <p style={{ margin: 0 }}>Nothing scheduled {targetDate === today ? 'for today' : 'that day'}.</p>
+            {isRestDay ? (
+              <>
+                <p style={{ margin: 0 }}>No WOD today — it&apos;s a scheduled recovery day.</p>
+                {daySlot?.slot.override_reason && (
+                  <p className="hw-muted" style={{ marginTop: 10, marginBottom: 0 }}>{daySlot.slot.override_reason}</p>
+                )}
+              </>
+            ) : (
+              <p style={{ margin: 0 }}>Nothing scheduled {targetDate === today ? 'for today' : 'that day'}.</p>
+            )}
           </div>
         </div>
         <TabBar />
