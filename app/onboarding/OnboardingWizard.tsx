@@ -64,9 +64,19 @@ export default function OnboardingWizard({ tracks }: { tracks: Track[] }) {
     }
 
     if (equipment.size > 0) {
+      // upsert, not insert: this wizard is also reached as /onboarding?switch=1
+      // by an athlete who already has equipment on file (switching tracks),
+      // so re-checking a box they'd already saved hit
+      // profile_equipment's (profile_id, equipment_tag) unique constraint and
+      // surfaced the raw Postgres error on screen (John's report, 2026-09-29).
+      // Same fix already applied to the profile_skill_levels/program_enrollments
+      // calls just below.
       const { error: equipmentError } = await supabase
         .from('profile_equipment')
-        .insert([...equipment].map((equipment_tag) => ({ profile_id: user.id, equipment_tag })));
+        .upsert(
+          [...equipment].map((equipment_tag) => ({ profile_id: user.id, equipment_tag })),
+          { onConflict: 'profile_id,equipment_tag', ignoreDuplicates: true },
+        );
       if (equipmentError) {
         setSaveState('error');
         setError(equipmentError.message);
