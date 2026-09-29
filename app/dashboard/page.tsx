@@ -70,7 +70,7 @@ export default async function DashboardPage() {
         program_cycles (
           start_date, length_days,
           calendar_slots (
-            id, date, day_type, target_modalities,
+            id, date, day_type, target_modalities, status,
             workouts (
               id, title, raw_text, is_benchmark, coach_notes, scaling_notes,
               workout_movements ( prescribed_distance_m, prescribed_calories, movements ( canonical_name, equipment, skill_category ) )
@@ -252,10 +252,14 @@ export default async function DashboardPage() {
   // "Tomorrow's WOD"-style next/prev links there). Same "first matching
   // enrollment/cycle wins" lookup /wod and /board already use, so all
   // three agree on which slot counts as "today" for a given athlete.
+  //
+  // status === 'approved' gate (2026-09-29): a slot Coach Deck has saved but
+  // not yet approved stays invisible here -- same gate /wod and /board use,
+  // so a day never appears on one feed surface and not the others.
   let todayContext: { slot: any; cycle: any; programName: string | null } | null = null;
   for (const enrollment of (enrollments ?? []) as any[]) {
     for (const cycle of enrollment.programs?.program_cycles ?? []) {
-      const slot = (cycle.calendar_slots ?? []).find((s: any) => s.date === today);
+      const slot = (cycle.calendar_slots ?? []).find((s: any) => s.date === today && s.status === 'approved');
       if (slot) {
         todayContext = { slot, cycle, programName: enrollment.programs?.name ?? null };
         break;

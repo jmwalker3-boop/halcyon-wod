@@ -17,17 +17,17 @@ export default async function BoardRedirectPage() {
 
   const { data: enrollments } = await supabase
     .from('program_enrollments')
-    .select('programs ( program_cycles ( calendar_slots ( date, workouts ( id ) ) ) )')
+    .select('programs ( program_cycles ( calendar_slots ( date, status, workouts ( id ) ) ) )')
     .eq('profile_id', user.id)
     .eq('active', true);
 
+  // status === 'approved' gate (2026-09-29), same as /dashboard and /wod.
   for (const enrollment of (enrollments ?? []) as any[]) {
     for (const cycle of enrollment.programs?.program_cycles ?? []) {
-      const slot = (cycle.calendar_slots ?? []).find((s: any) => s.date === today && s.workouts);
+      const slot = (cycle.calendar_slots ?? []).find((s: any) => s.date === today && s.status === 'approved' && s.workouts);
       if (slot) redirect(`/leaderboard/${slot.workouts.id}`);
     }
   }
 
   redirect('/dashboard');
 }
-

@@ -26,6 +26,10 @@ export type ScalingTier = 'intermediate' | 'beginner';
 export type AthleteSkillLevel = 'rx' | 'intermediate' | 'beginner';
 export type SkillCategory = 'pull_up_bar' | 'rings' | 'handstand' | 'hanging_core' | 'rope_climb' | 'pistol';
 export type ResultType = 'time' | 'rounds_reps' | 'load' | 'cals' | 'reps';
+// 'draft' = saved in Coach Deck but not yet approved for the athlete feed;
+// 'approved' = visible to enrolled athletes. See
+// 20260929_add_calendar_slot_approval_status.sql.
+export type CalendarSlotStatus = 'draft' | 'approved';
 
 export interface Database {
   public: {
@@ -65,6 +69,9 @@ export interface Database {
           target_modalities: Modality[];
           workout_id: string | null;
           override_reason: string | null;
+          status: CalendarSlotStatus;
+          approved_at: string | null;
+          approved_by: string | null;
         };
         Insert: Partial<Database['public']['Tables']['calendar_slots']['Row']> & {
           program_cycle_id: string;

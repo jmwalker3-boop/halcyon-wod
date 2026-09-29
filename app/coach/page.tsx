@@ -5,7 +5,7 @@ import Link from 'next/link';
 import LogoutButton from '@/components/LogoutButton';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import type { ResultType } from '@/lib/db/types';
+import type { CalendarSlotStatus, ResultType } from '@/lib/db/types';
 
 // Coach Deck (mockup screen 2d), v0. John's own description of the workflow
 // (2026-09-05): every Sunday, before the week becomes visible to athletes,
@@ -46,6 +46,7 @@ type Slot = {
   day_type: string;
   target_modalities: Modality[] | null;
   override_reason: string | null;
+  status: CalendarSlotStatus;
   workouts: {
     id: string;
     title: string | null;
@@ -128,6 +129,8 @@ function CoachDeck() {
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [slots, setSlots] = useState<Slot[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [approveAllState, setApproveAllState] = useState<'idle' | 'saving' | 'error'>('idle');
 
   useEffect(() => {
     (async () => {
@@ -141,6 +144,7 @@ function CoachDeck() {
         setLoadState('error');
         return;
       }
+      setUserId(user.id);
 
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
       if (profile?.role !== 'admin') {
@@ -151,7 +155,7 @@ function CoachDeck() {
       const { data, error: fetchError } = await supabase
         .from('calendar_slots')
         .select(
-          `id, date, day_type, target_modalities, override_reason,
+          `id, date, day_type, target_modalities, override_reason, status,
            workouts ( id, title, raw_text, is_benchmark, coach_notes, scaling_notes, result_type_override, result_type_override_2, allow_multiple_time_scores,
              workout_movements ( movements ( canonical_name ) ) )`,
         )
@@ -204,6 +208,29 @@ function CoachDeck() {
   const byDate = new Map(slots.map((s) => [s.date, s]));
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
+  function handleSlotApproved(slotId: string) {
+    setSlots((prev) => prev.map((s) => (s.id === slotId ? { ...s, status: 'approved' } : s)));
+  }
+
+  async function handleApproveWeek() {
+    const draftIds = slots.filter((s) => s.status === 'draft').map((s) => s.id);
+    if (draftIds.length === 0 || !userId) return;
+    setApproveAllState('saving');
+    const supabase = createClient();
+    const { error: approveError } = await supabase
+      .from('calendar_slots')
+      .update({ status: 'approved', approved_at: new Date().toISOString(), approved_by: userId })
+      .in('id', draftIds);
+    if (approveError) {
+      setApproveAllState('error');
+      return;
+    }
+    setSlots((prev) => prev.map((s) => (draftIds.includes(s.id) ? { ...s, status: 'approved' } : s)));
+    setApproveAllState('idle');
+  }
+
+  const draftCount = slots.filter((s) => s.status === 'draft').length;
+
   return (
     <main className="hw-shell">
       <div className="hw-wrap">
@@ -231,9 +258,26 @@ function CoachDeck() {
           {new Date(`${weekEnd}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
         </p>
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <Link href={`/coach?start=${addDays(weekStart, -7)}`} className="hw-pill hw-pill-outline">← Prev week</Link>
           <Link href={`/coach?start=${addDays(weekStart, 7)}`} className="hw-pill hw-pill-outline">Next week →</Link>
+          {/* Publishes every draft slot in the loaded week at once -- matches
+              John's stated workflow (page-top comment): review Mon-Sun once,
+              then the whole week goes live together, not day by day. Each
+              DayCard below can still approve/revert a single day on its own
+              for the rare case one day needs to be held back or fast-tracked. */}
+          {draftCount > 0 && (
+            <button
+              type="button"
+              onClick={handleApproveWeek}
+              disabled={approveAllState === 'saving'}
+              className="hw-btn hw-btn-dark"
+              style={{ width: 'auto', padding: '9px 18px', fontSize: 13 }}
+            >
+              {approveAllState === 'saving' ? 'Approving…' : `Approve week (${draftCount} draft${draftCount === 1 ? '' : 's'})`}
+            </button>
+          )}
+          {approveAllState === 'error' && <span className="hw-error" style={{ fontSize: 12 }}>Couldn&apos;t approve — try again.</span>}
         </div>
 
         <div className="hw-card" style={{ marginTop: 16 }}>
@@ -347,7 +391,7 @@ function CoachDeck() {
               );
             }
 
-            return <DayCard key={slot.id} label={label} slot={slot} />;
+            return <DayCard key={slot.id} label={label} slot={slot} userId={userId} onApproved={handleSlotApproved} />;
           })}
         </div>
       </div>
@@ -356,8 +400,19 @@ function CoachDeck() {
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+type ApproveState = 'idle' | 'saving' | 'error';
 
-function DayCard({ label, slot }: { label: string; slot: Slot }) {
+function DayCard({
+  label,
+  slot,
+  userId,
+  onApproved,
+}: {
+  label: string;
+  slot: Slot;
+  userId: string | null;
+  onApproved: (slotId: string) => void;
+}) {
   const [title, setTitle] = useState(slot.workouts?.title ?? '');
   const [rawText, setRawText] = useState(slot.workouts?.raw_text ?? '');
   const [coachNotes, setCoachNotes] = useState(slot.workouts?.coach_notes ?? '');
@@ -376,6 +431,8 @@ function DayCard({ label, slot }: { label: string; slot: Slot }) {
   const [note, setNote] = useState(slot.override_reason ?? '');
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<CalendarSlotStatus>(slot.status);
+  const [approveState, setApproveState] = useState<ApproveState>('idle');
 
   // 'time' can only ever occupy one of the two locked-score slots at once
   // (the second-scoring-type picker excludes whatever the first already
@@ -420,6 +477,32 @@ function DayCard({ label, slot }: { label: string; slot: Slot }) {
     setSaveState('saved');
   }
 
+  // Approval is the gate that decides whether this slot's already-saved
+  // content shows up on the athlete feed (dashboard/wod/board all now
+  // require status='approved' to resolve a day) -- separate from Save so a
+  // coach can keep editing a draft without it going live, then explicitly
+  // publish it, or revert an already-approved day back to draft (e.g. to
+  // pull a day back for a last-minute fix) without touching its content.
+  async function setSlotStatus(next: CalendarSlotStatus) {
+    setApproveState('saving');
+    const supabase = createClient();
+    const { error: statusError } = await supabase
+      .from('calendar_slots')
+      .update(
+        next === 'approved'
+          ? { status: 'approved', approved_at: new Date().toISOString(), approved_by: userId }
+          : { status: 'draft', approved_at: null, approved_by: null },
+      )
+      .eq('id', slot.id);
+    if (statusError) {
+      setApproveState('error');
+      return;
+    }
+    setStatus(next);
+    setApproveState('idle');
+    if (next === 'approved') onApproved(slot.id);
+  }
+
   return (
     <div className="hw-card" style={{ padding: 0, overflow: 'hidden' }}>
       <div
@@ -434,7 +517,12 @@ function DayCard({ label, slot }: { label: string; slot: Slot }) {
         }}
       >
         <span className="hw-label">{label}</span>
-        <span className="hw-muted" style={{ fontSize: 11, fontWeight: 700 }}>{slot.day_type}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="hw-muted" style={{ fontSize: 11, fontWeight: 700 }}>{slot.day_type}</span>
+          <span className={status === 'approved' ? 'hw-pill hw-pill-cyan' : 'hw-pill hw-pill-outline'} style={{ fontSize: 10 }}>
+            {status === 'approved' ? 'On feed' : 'Draft'}
+          </span>
+        </div>
       </div>
 
       <div style={{ padding: 14 }}>
@@ -658,7 +746,7 @@ function DayCard({ label, slot }: { label: string; slot: Slot }) {
           />
         </div>
 
-        <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <button
             type="button"
             onClick={handleSave}
@@ -670,6 +758,29 @@ function DayCard({ label, slot }: { label: string; slot: Slot }) {
           </button>
           {saveState === 'saved' && <span className="hw-pill hw-pill-cyan">Saved</span>}
           {saveState === 'error' && error && <span className="hw-error" style={{ fontSize: 12 }}>{error}</span>}
+
+          {status === 'draft' ? (
+            <button
+              type="button"
+              onClick={() => setSlotStatus('approved')}
+              disabled={approveState === 'saving'}
+              className="hw-btn hw-btn-mustard"
+              style={{ width: 'auto', padding: '9px 18px', fontSize: 13 }}
+            >
+              {approveState === 'saving' ? 'Approving…' : 'Approve for feed'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSlotStatus('draft')}
+              disabled={approveState === 'saving'}
+              className="hw-pill hw-pill-outline"
+              style={{ cursor: 'pointer', border: '2px solid var(--hw-ink)' }}
+            >
+              {approveState === 'saving' ? 'Reverting…' : 'Revert to draft'}
+            </button>
+          )}
+          {approveState === 'error' && <span className="hw-error" style={{ fontSize: 12 }}>Couldn&apos;t update status — try again.</span>}
         </div>
       </div>
     </div>

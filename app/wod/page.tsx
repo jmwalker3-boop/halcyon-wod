@@ -71,7 +71,7 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
         program_cycles (
           start_date, length_days,
           calendar_slots (
-            id, date, day_type, target_modalities,
+            id, date, day_type, target_modalities, status,
             workouts (
               id, title, raw_text, is_benchmark, coach_notes, scaling_notes, result_type_override, result_type_override_2, allow_multiple_time_scores,
               workout_movements ( prescribed_distance_m, prescribed_calories, movements ( canonical_name, equipment, skill_category ) )
@@ -277,11 +277,12 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
   // Find the target day's slot -- first enrollment/cycle whose
   // calendar_slots contains it, same "one program" assumption the rest of
   // the app makes. undefined if not enrolled, or enrolled but no slot
-  // that day.
+  // that day. status === 'approved' gate (2026-09-29), same as /dashboard
+  // and /board -- an unapproved day reads the same as "nothing scheduled."
   let daySlot: any = null;
   for (const enrollment of (enrollments ?? []) as any[]) {
     for (const cycle of enrollment.programs?.program_cycles ?? []) {
-      const slot = (cycle.calendar_slots ?? []).find((s: any) => s.date === targetDate);
+      const slot = (cycle.calendar_slots ?? []).find((s: any) => s.date === targetDate && s.status === 'approved');
       if (slot) {
         daySlot = { slot, cycle };
         break;
