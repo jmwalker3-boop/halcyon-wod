@@ -629,13 +629,15 @@ function DayCard({
                 needs no equipment can still need a Scaled version, and one
                 that needs a lot of equipment can still need no Scaled
                 version at all. Blank until a coach writes one. Approved
-                alongside the rest of this day, not separately. */}
-            <span className="hw-label" style={{ display: 'block', marginTop: 10 }}>Scaled version (easier movement)</span>
+                alongside the rest of this day, not separately.
+                Standing convention (John, 2026-10-01): any DB weight in a
+                Scaled version is 35/25, regardless of the Rx load. */}
+            <span className="hw-label" style={{ display: 'block', marginTop: 10 }}>Scaled version (easier movement, DB weights 35/25)</span>
             <textarea
               value={scaledRawText}
               onChange={(e) => setScaledRawText(e.target.value)}
               rows={6}
-              placeholder="Easier-movement version of this workout (e.g. HSPU -> Pike Push-up)"
+              placeholder="Easier-movement version of this workout (e.g. HSPU -> Pike Push-up). DB weights: 35/25."
               style={{
                 width: '100%',
                 font: '700 12px/1.6 "Space Mono", monospace',
