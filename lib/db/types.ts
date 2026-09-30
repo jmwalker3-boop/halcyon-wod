@@ -26,6 +26,7 @@ export type ScalingTier = 'intermediate' | 'beginner';
 export type AthleteSkillLevel = 'rx' | 'intermediate' | 'beginner';
 export type SkillCategory = 'pull_up_bar' | 'rings' | 'handstand' | 'hanging_core' | 'rope_climb' | 'pistol';
 export type ResultType = 'time' | 'rounds_reps' | 'load' | 'cals' | 'reps';
+export type WorkoutSource = 'legacy_corpus' | 'cycle2_corpus' | 'generated' | 'reference_benchmark';
 // 'draft' = saved in Coach Deck but not yet approved for the athlete feed;
 // 'approved' = visible to enrolled athletes. See
 // 20260929_add_calendar_slot_approval_status.sql.
@@ -84,6 +85,7 @@ export interface Database {
       workouts: {
         Row: {
           id: string;
+          source: WorkoutSource;
           title: string | null;
           day_type: DayType | null;
           raw_text: string | null;
@@ -105,6 +107,9 @@ export interface Database {
           // ScoreForm offer multiple time entries (one per interval)
           // instead of a single time.
           allow_multiple_time_scores: boolean;
+          // DB/KB-and-equipment-free sibling variant of this workout, shown
+          // as the "Minimal" tab on /wod. Null until a coach writes one.
+          minimal_workout_id: string | null;
         };
         Insert: Partial<Database['public']['Tables']['workouts']['Row']> & { id?: string };
         Update: Partial<Database['public']['Tables']['workouts']['Row']>;

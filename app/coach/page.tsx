@@ -5,7 +5,7 @@ import Link from 'next/link';
 import LogoutButton from '@/components/LogoutButton';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import type { CalendarSlotStatus, ResultType } from '@/lib/db/types';
+import type { CalendarSlotStatus, DayType, ResultType } from '@/lib/db/types';
 
 // Coach Deck (mockup screen 2d), v0. John's own description of the workflow
 // (2026-09-05): every Sunday, before the week becomes visible to athletes,
@@ -57,6 +57,8 @@ type Slot = {
     result_type_override: ResultType | null;
     result_type_override_2: ResultType | null;
     allow_multiple_time_scores: boolean;
+    minimal_workout_id: string | null;
+    minimal: { id: string; raw_text: string | null } | null;
     workout_movements: { movements: { canonical_name: string } | null }[];
   } | null;
 };
@@ -157,6 +159,7 @@ function CoachDeck() {
         .select(
           `id, date, day_type, target_modalities, override_reason, status,
            workouts ( id, title, raw_text, is_benchmark, coach_notes, scaling_notes, result_type_override, result_type_override_2, allow_multiple_time_scores,
+             minimal_workout_id, minimal:minimal_workout_id ( id, raw_text ),
              workout_movements ( movements ( canonical_name ) ) )`,
         )
         .gte('date', weekStart)
@@ -429,6 +432,11 @@ function DayCard({
   // the two locked scoring shapes -- see the checkbox below.
   const [allowMultipleTimeScores, setAllowMultipleTimeScores] = useState(!!slot.workouts?.allow_multiple_time_scores);
   const [note, setNote] = useState(slot.override_reason ?? '');
+  // DB/KB-and-equipment-free variant shown as the "Minimal" tab on /wod
+  // (John's request, 2026-09-29). Lives as its own workouts row, linked via
+  // minimal_workout_id -- created on first save if the coach types
+  // something here and no linked row exists yet.
+  const [minimalRawText, setMinimalRawText] = useState(slot.workouts?.minimal?.raw_text ?? '');
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<CalendarSlotStatus>(slot.status);
@@ -461,6 +469,38 @@ function DayCard({
         setError(workoutError.message);
         setSaveState('error');
         return;
+      }
+
+      if (slot.workouts.minimal_workout_id) {
+        const { error: minimalError } = await supabase
+          .from('workouts')
+          .update({ raw_text: minimalRawText || null })
+          .eq('id', slot.workouts.minimal_workout_id);
+        if (minimalError) {
+          setError(minimalError.message);
+          setSaveState('error');
+          return;
+        }
+      } else if (minimalRawText.trim()) {
+        const { data: newMinimal, error: insertError } = await supabase
+          .from('workouts')
+          .insert({ source: 'generated', day_type: slot.day_type as DayType, raw_text: minimalRawText })
+          .select('id')
+          .single();
+        if (insertError) {
+          setError(insertError.message);
+          setSaveState('error');
+          return;
+        }
+        const { error: linkError } = await supabase
+          .from('workouts')
+          .update({ minimal_workout_id: newMinimal.id })
+          .eq('id', slot.workouts.id);
+        if (linkError) {
+          setError(linkError.message);
+          setSaveState('error');
+          return;
+        }
       }
     }
 
@@ -559,6 +599,30 @@ function DayCard({
                 borderRadius: 8,
                 background: 'var(--hw-paper)',
                 color: 'var(--hw-ink)',
+                resize: 'vertical',
+              }}
+            />
+
+            {/* "Minimal" tab on /wod (John's request, 2026-09-29): a
+                DB/KB-and-equipment-free variant of the same workout. Blank
+                until a coach writes one -- /wod shows "not generated yet"
+                until then. Approved alongside the rest of this day, not
+                separately. */}
+            <span className="hw-label" style={{ display: 'block', marginTop: 10 }}>Minimal version (DB/KB, no equipment)</span>
+            <textarea
+              value={minimalRawText}
+              onChange={(e) => setMinimalRawText(e.target.value)}
+              rows={6}
+              placeholder="DB/KB and equipment-free version of this workout"
+              style={{
+                width: '100%',
+                font: '700 12px/1.6 "Space Mono", monospace',
+                padding: '10px 12px',
+                border: '2px solid var(--hw-ink)',
+                borderRadius: 8,
+                background: 'var(--hw-paper)',
+                color: 'var(--hw-ink)',
+                marginTop: 6,
                 resize: 'vertical',
               }}
             />
