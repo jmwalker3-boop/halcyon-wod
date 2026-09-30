@@ -59,6 +59,8 @@ type Slot = {
     allow_multiple_time_scores: boolean;
     minimal_workout_id: string | null;
     minimal: { id: string; raw_text: string | null } | null;
+    scaled_workout_id: string | null;
+    scaled: { id: string; raw_text: string | null } | null;
     workout_movements: { movements: { canonical_name: string } | null }[];
   } | null;
 };
@@ -160,6 +162,7 @@ function CoachDeck() {
           `id, date, day_type, target_modalities, override_reason, status,
            workouts ( id, title, raw_text, is_benchmark, coach_notes, scaling_notes, result_type_override, result_type_override_2, allow_multiple_time_scores,
              minimal_workout_id, minimal:minimal_workout_id ( id, raw_text ),
+             scaled_workout_id, scaled:scaled_workout_id ( id, raw_text ),
              workout_movements ( movements ( canonical_name ) ) )`,
         )
         .gte('date', weekStart)
@@ -432,10 +435,15 @@ function DayCard({
   // the two locked scoring shapes -- see the checkbox below.
   const [allowMultipleTimeScores, setAllowMultipleTimeScores] = useState(!!slot.workouts?.allow_multiple_time_scores);
   const [note, setNote] = useState(slot.override_reason ?? '');
-  // DB/KB-and-equipment-free variant shown as the "Minimal" tab on /wod
-  // (John's request, 2026-09-29). Lives as its own workouts row, linked via
+  // Two sibling-variant text fields, same mechanism, two different axes
+  // (John's request, 2026-09-29, corrected 2026-09-30 once the HSPU example
+  // showed the two were getting conflated): Scaled is the easier-movement
+  // swap for a skill gap (HSPU -> Pike Push-up), Minimal is the
+  // equipment-free swap (HSPU stays HSPU -- it never needed equipment).
+  // Each lives as its own workouts row, linked via scaled_workout_id /
   // minimal_workout_id -- created on first save if the coach types
-  // something here and no linked row exists yet.
+  // something and no linked row exists yet.
+  const [scaledRawText, setScaledRawText] = useState(slot.workouts?.scaled?.raw_text ?? '');
   const [minimalRawText, setMinimalRawText] = useState(slot.workouts?.minimal?.raw_text ?? '');
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -446,6 +454,35 @@ function DayCard({
   // (the second-scoring-type picker excludes whatever the first already
   // is), so checking both covers either position.
   const timeIsLocked = resultTypeOverride === 'time' || (hasSecondScore && resultTypeOverride2 === 'time');
+
+  // Shared insert-or-update for the two sibling-variant fields: if the
+  // parent workout already links to one, update its text directly;
+  // otherwise, if the coach actually typed something, create it and link
+  // it via the given column. Returns an error message, or null on success.
+  async function saveVariant(
+    supabase: ReturnType<typeof createClient>,
+    parentWorkoutId: string,
+    linkedId: string | null,
+    text: string,
+    linkColumn: 'minimal_workout_id' | 'scaled_workout_id',
+  ): Promise<string | null> {
+    if (linkedId) {
+      const { error } = await supabase.from('workouts').update({ raw_text: text || null }).eq('id', linkedId);
+      return error?.message ?? null;
+    }
+    if (!text.trim()) return null;
+    const { data: newVariant, error: insertError } = await supabase
+      .from('workouts')
+      .insert({ source: 'generated', day_type: slot.day_type as DayType, raw_text: text })
+      .select('id')
+      .single();
+    if (insertError) return insertError.message;
+    const { error: linkError } = await supabase
+      .from('workouts')
+      .update(linkColumn === 'minimal_workout_id' ? { minimal_workout_id: newVariant.id } : { scaled_workout_id: newVariant.id })
+      .eq('id', parentWorkoutId);
+    return linkError?.message ?? null;
+  }
 
   async function handleSave() {
     setSaveState('saving');
@@ -471,36 +508,18 @@ function DayCard({
         return;
       }
 
-      if (slot.workouts.minimal_workout_id) {
-        const { error: minimalError } = await supabase
-          .from('workouts')
-          .update({ raw_text: minimalRawText || null })
-          .eq('id', slot.workouts.minimal_workout_id);
-        if (minimalError) {
-          setError(minimalError.message);
-          setSaveState('error');
-          return;
-        }
-      } else if (minimalRawText.trim()) {
-        const { data: newMinimal, error: insertError } = await supabase
-          .from('workouts')
-          .insert({ source: 'generated', day_type: slot.day_type as DayType, raw_text: minimalRawText })
-          .select('id')
-          .single();
-        if (insertError) {
-          setError(insertError.message);
-          setSaveState('error');
-          return;
-        }
-        const { error: linkError } = await supabase
-          .from('workouts')
-          .update({ minimal_workout_id: newMinimal.id })
-          .eq('id', slot.workouts.id);
-        if (linkError) {
-          setError(linkError.message);
-          setSaveState('error');
-          return;
-        }
+      const scaledError = await saveVariant(supabase, slot.workouts.id, slot.workouts.scaled_workout_id, scaledRawText, 'scaled_workout_id');
+      if (scaledError) {
+        setError(scaledError);
+        setSaveState('error');
+        return;
+      }
+
+      const minimalError = await saveVariant(supabase, slot.workouts.id, slot.workouts.minimal_workout_id, minimalRawText, 'minimal_workout_id');
+      if (minimalError) {
+        setError(minimalError);
+        setSaveState('error');
+        return;
       }
     }
 
@@ -599,6 +618,33 @@ function DayCard({
                 borderRadius: 8,
                 background: 'var(--hw-paper)',
                 color: 'var(--hw-ink)',
+                resize: 'vertical',
+              }}
+            />
+
+            {/* "Scaled" tab on /wod (John's request, 2026-09-30): the
+                easier-MOVEMENT variant for a skill gap -- e.g. HSPU ->
+                Pike Push-up or Overhead Press. Not an equipment reduction
+                (that's Minimal, right below); a movement that already
+                needs no equipment can still need a Scaled version, and one
+                that needs a lot of equipment can still need no Scaled
+                version at all. Blank until a coach writes one. Approved
+                alongside the rest of this day, not separately. */}
+            <span className="hw-label" style={{ display: 'block', marginTop: 10 }}>Scaled version (easier movement)</span>
+            <textarea
+              value={scaledRawText}
+              onChange={(e) => setScaledRawText(e.target.value)}
+              rows={6}
+              placeholder="Easier-movement version of this workout (e.g. HSPU -> Pike Push-up)"
+              style={{
+                width: '100%',
+                font: '700 12px/1.6 "Space Mono", monospace',
+                padding: '10px 12px',
+                border: '2px solid var(--hw-ink)',
+                borderRadius: 8,
+                background: 'var(--hw-paper)',
+                color: 'var(--hw-ink)',
+                marginTop: 6,
                 resize: 'vertical',
               }}
             />

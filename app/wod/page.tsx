@@ -14,15 +14,20 @@ import TopBar from '@/components/TopBar';
 //
 // Rx / Scaled / Minimal (John's call, 2026-09-29) replaces the old As
 // Written / My Rx toggle: fixed, pre-authored variants per workout instead
-// of live per-athlete equipment/skill resolution.
+// of live per-athlete equipment/skill resolution. Scaled and Minimal are
+// two different axes, not two flavors of the same thing (corrected
+// 2026-09-30 once the HSPU example showed them getting conflated -- Scaled
+// swapping in Pike Push-up/Overhead Press for a skill gap, and Minimal
+// staying Handstand Push-up because it never needed equipment in the first
+// place):
 //   - Rx: the workout exactly as written (raw_text).
-//   - Scaled: the identified scale/substitute already on file per movement
-//     (movement_scales, movement_equipment_substitutes) -- reference data,
-//     not personalized to any one athlete.
-//   - Minimal: a DB/KB-and-equipment-free variant of the same workout,
-//     authored per-workout and linked via workouts.minimal_workout_id.
-//     Reviewed/approved alongside the parent through the same Sunday Coach
-//     Deck pass as everything else -- it doesn't have its own approval gate.
+//   - Scaled: the easier-MOVEMENT variant for a skill gap (e.g. HSPU ->
+//     Pike Push-up), coach-authored, linked via workouts.scaled_workout_id.
+//   - Minimal: the equipment-free variant (e.g. DB Deadlift -> Bodyweight
+//     Deadlift), coach-authored, linked via workouts.minimal_workout_id.
+// Both siblings are reviewed/approved alongside the parent through the same
+// Sunday Coach Deck pass as everything else -- neither has its own
+// approval gate.
 //
 // Date-paged via ?date= (John's request, same day: "Landing page should
 // show 'Today's wod' card, but no other wods. The week's wods can be
@@ -71,9 +76,10 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
             id, date, day_type, target_modalities, status, override_reason,
             workouts (
               id, title, raw_text, is_benchmark, coach_notes, scaling_notes, result_type_override, result_type_override_2, allow_multiple_time_scores,
+              scaled_workout_id,
+              scaled:scaled_workout_id ( id, title, raw_text ),
               minimal_workout_id,
-              minimal:minimal_workout_id ( id, title, raw_text ),
-              workout_movements ( movements ( id, canonical_name ) )
+              minimal:minimal_workout_id ( id, title, raw_text )
             )
           )
         )
@@ -83,29 +89,10 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
     .eq('profile_id', user.id)
     .eq('active', true);
 
-  const [{ data: allMovementRows }, { data: movementScaleRows }, { data: equipmentSubstituteRows }] = await Promise.all([
-    supabase.from('movements').select('id, canonical_name, equipment').order('canonical_name', { ascending: true }),
-    supabase.from('movement_scales').select('movement_id, tier, scale_movement_id'),
-    supabase.from('movement_equipment_substitutes').select('movement_id, substitute_id'),
-  ]);
-
-  // Reference data, not personalized to any one athlete: movement_id ->
-  // {intermediate?, beginner?, equipment?} name, resolved once here so the
-  // Scaled tab is a flat lookup per movement in the workout.
-  const movementNameById = new Map((allMovementRows ?? []).map((m: any) => [m.id, m.canonical_name as string]));
-  const scaleByMovementId = new Map<string, { intermediate?: string; beginner?: string }>();
-  for (const row of (movementScaleRows ?? []) as any[]) {
-    const name = movementNameById.get(row.scale_movement_id);
-    if (!name) continue;
-    const entry = scaleByMovementId.get(row.movement_id) ?? {};
-    entry[row.tier as 'intermediate' | 'beginner'] = name;
-    scaleByMovementId.set(row.movement_id, entry);
-  }
-  const equipmentSubByMovementId = new Map<string, string>();
-  for (const row of (equipmentSubstituteRows ?? []) as any[]) {
-    const name = movementNameById.get(row.substitute_id);
-    if (name) equipmentSubByMovementId.set(row.movement_id, name);
-  }
+  const { data: allMovementRows } = await supabase
+    .from('movements')
+    .select('id, canonical_name, equipment')
+    .order('canonical_name', { ascending: true });
 
   function formatSeconds(seconds: number) {
     const m = Math.floor(seconds / 60);
@@ -190,7 +177,24 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
     ? { seconds: gymSeconds.reduce((a, b) => a + b, 0) / gymSeconds.length, count: gymSeconds.length }
     : null;
 
-  const workoutMovements = (slot.workouts.workout_movements ?? []).filter((wm: any) => wm.movements);
+  function variantPane(text: string | null | undefined, emptyLabel: string) {
+    return text ? (
+      <pre
+        style={{
+          whiteSpace: 'pre-wrap',
+          font: '700 12px/1.7 "Space Mono", monospace',
+          color: 'var(--hw-ink)',
+          margin: 0,
+        }}
+      >
+        {text}
+      </pre>
+    ) : (
+      <div className="hw-card" style={{ background: 'var(--hw-violet)', color: 'var(--hw-paper)' }}>
+        <p style={{ margin: 0, fontSize: 13 }}>{emptyLabel}</p>
+      </div>
+    );
+  }
 
   return (
     <main className="hw-shell">
@@ -223,83 +227,9 @@ export default async function WodPage({ searchParams }: { searchParams: Promise<
 
         <div style={{ marginTop: 12 }}>
           <WodTabs
-            rx={
-              <pre
-                style={{
-                  whiteSpace: 'pre-wrap',
-                  font: '700 12px/1.7 "Space Mono", monospace',
-                  color: 'var(--hw-ink)',
-                  margin: 0,
-                }}
-              >
-                {slot.workouts.raw_text ?? '(no content yet)'}
-              </pre>
-            }
-            scaled={
-              workoutMovements.length === 0 ? (
-                <p className="hw-muted">Nothing to scale for this one.</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {workoutMovements.map((wm: any) => {
-                    const scale = scaleByMovementId.get(wm.movements.id);
-                    const sub = scale?.intermediate ?? scale?.beginner ?? equipmentSubByMovementId.get(wm.movements.id);
-                    return (
-                      <div key={wm.movements.id} className="hw-card" style={{ padding: 0, overflow: 'hidden' }}>
-                        <div style={{ display: 'flex', alignItems: 'stretch' }}>
-                          <div style={{ flex: 1, padding: '12px 14px', minWidth: 0 }}>
-                            <div className="hw-h3" style={{ fontSize: 16 }}>{wm.movements.canonical_name.toUpperCase()}</div>
-                            {sub ? (
-                              <div className="hw-muted" style={{ font: '700 11px/1.6 "Space Mono", monospace' }}>
-                                → {sub.toUpperCase()}
-                              </div>
-                            ) : (
-                              <div className="hw-muted" style={{ font: '700 11px/1.6 "Space Mono", monospace' }}>
-                                No scale on file — Rx as written.
-                              </div>
-                            )}
-                          </div>
-                          <div
-                            style={{
-                              width: 56,
-                              flex: 'none',
-                              background: 'var(--hw-ink)',
-                              color: sub ? 'var(--hw-mustard)' : 'var(--hw-cyan)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              textAlign: 'center',
-                              font: '700 10px/1.2 "Space Mono", monospace',
-                            }}
-                          >
-                            {sub ? 'SCALED' : 'RX'}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )
-            }
-            minimal={
-              slot.workouts.minimal?.raw_text ? (
-                <pre
-                  style={{
-                    whiteSpace: 'pre-wrap',
-                    font: '700 12px/1.7 "Space Mono", monospace',
-                    color: 'var(--hw-ink)',
-                    margin: 0,
-                  }}
-                >
-                  {slot.workouts.minimal.raw_text}
-                </pre>
-              ) : (
-                <div className="hw-card" style={{ background: 'var(--hw-violet)', color: 'var(--hw-paper)' }}>
-                  <p style={{ margin: 0, fontSize: 13 }}>
-                    No DB/KB-and-equipment-free version of this one yet — ask your coach.
-                  </p>
-                </div>
-              )
-            }
+            rx={variantPane(slot.workouts.raw_text, '(no content yet)')}
+            scaled={variantPane(slot.workouts.scaled?.raw_text, 'No scaled version written yet — ask your coach.')}
+            minimal={variantPane(slot.workouts.minimal?.raw_text, 'No DB/KB-and-equipment-free version of this one yet — ask your coach.')}
           />
         </div>
 

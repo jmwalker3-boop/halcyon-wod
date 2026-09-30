@@ -110,6 +110,10 @@ export interface Database {
           // DB/KB-and-equipment-free sibling variant of this workout, shown
           // as the "Minimal" tab on /wod. Null until a coach writes one.
           minimal_workout_id: string | null;
+          // Easier-movement sibling variant (skill/difficulty scale, not an
+          // equipment reduction -- e.g. HSPU -> Pike Push-up), shown as the
+          // "Scaled" tab on /wod. Null until a coach writes one.
+          scaled_workout_id: string | null;
         };
         Insert: Partial<Database['public']['Tables']['workouts']['Row']> & { id?: string };
         Update: Partial<Database['public']['Tables']['workouts']['Row']>;
