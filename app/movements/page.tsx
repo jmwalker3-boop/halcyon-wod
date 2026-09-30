@@ -1,42 +1,23 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-import type { AthleteSkillLevel, Modality, SkillCategory } from '@/lib/db/types';
-import { checkEquipmentGap, normalizeEquipmentTag } from '@blackboxmethod/equipment-resolver';
+import type { Modality } from '@/lib/db/types';
 
-// Mockup screen 2e ("The Moves"). Personalized 2026-09-07 alongside the
-// leaderboard/dashboard mockup pass -- previously this was a flat,
-// un-personalized catalog (same RLS posture as dashboard/page.tsx's
-// comment on `movements`: any signed-in athlete can read the whole table).
-// Equipment-gap checking reuses checkEquipmentGap from the same resolver
-// package /dashboard uses, rather than re-implementing tag matching here.
-// Deliberately lighter than the full resolveMovementForAthlete pass
-// though: this page shows the RX/INT/BEG *ladder* for a skill category (so
-// an athlete can see where they'd land if they moved a slider), not a
-// live "what would today's WOD look like" resolution -- that's what
-// /dashboard is for.
+// Mockup screen 2e ("The Moves"). Per-athlete personalization (gear gaps,
+// current skill level) removed (John's call, 2026-09-29): Rx / Scaled /
+// Minimal on /wod replaces per-athlete resolution with fixed, pre-authored
+// workout variants, so there's no athlete profile left to resolve against.
+// What's still shown -- what a movement needs, and the intermediate/
+// beginner scale or equipment sub already on file for it -- is reference
+// data, not personalized to any one athlete.
 
-const MODALITY_LABEL: Record<Modality, string> = { M: 'Monostructural', G: 'Gymnastics', W: 'Weightlifting' };
 const MODALITY_HEADER: Record<Modality, string> = { M: 'var(--hw-navy)', G: 'var(--hw-mustard)', W: 'var(--hw-pink)' };
 const MODALITY_HEADER_TEXT: Record<Modality, string> = { M: 'var(--hw-mustard)', G: 'var(--hw-ink)', W: 'var(--hw-paper)' };
-const SKILL_LABEL: Record<SkillCategory, string> = {
-  pull_up_bar: 'Pull-up Bar',
-  rings: 'Rings',
-  handstand: 'Handstand',
-  hanging_core: 'Hanging Core',
-  rope_climb: 'Rope Climb',
-  pistol: 'Pistol',
-};
-const TIER_BADGE: Record<AthleteSkillLevel, { bg: string; color: string; label: string }> = {
-  rx: { bg: 'var(--hw-violet)', color: 'var(--hw-paper)', label: 'RX' },
-  intermediate: { bg: 'var(--hw-cyan)', color: 'var(--hw-ink)', label: 'INT' },
-  beginner: { bg: 'var(--hw-orange)', color: 'var(--hw-ink)', label: 'BEG' },
-};
 
 export default async function MovementsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; modality?: string; gear?: string }>;
+  searchParams: Promise<{ q?: string; modality?: string }>;
 }) {
   const supabase = await createClient();
   const {
@@ -44,35 +25,22 @@ export default async function MovementsPage({
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const { q = '', modality: modalityFilter = '', gear: gearFilter = '' } = await searchParams;
+  const { q = '', modality: modalityFilter = '' } = await searchParams;
 
-  const [
-    { data: movements },
-    { data: ownedTagRows },
-    { data: skillLevelRows },
-    { data: movementScaleRows },
-    { data: equipmentSubstituteRows },
-  ] = await Promise.all([
+  const [{ data: movements }, { data: movementScaleRows }, { data: equipmentSubstituteRows }] = await Promise.all([
     supabase.from('movements').select('id, canonical_name, modality, equipment, skill_category').order('canonical_name'),
-    supabase.from('profile_equipment').select('equipment_tag').eq('profile_id', user.id),
-    supabase.from('profile_skill_levels').select('skill_category, level').eq('profile_id', user.id),
     supabase.from('movement_scales').select('movement_id, tier, scale_movement_id'),
     supabase.from('movement_equipment_substitutes').select('movement_id, substitute_id'),
   ]);
 
-  const hasRecordedEquipment = (ownedTagRows?.length ?? 0) > 0;
-  const ownedTags = new Set((ownedTagRows ?? []).map((r: any) => normalizeEquipmentTag(r.equipment_tag)));
-  const skillLevels = new Map<SkillCategory, AthleteSkillLevel>(
-    (skillLevelRows ?? []).map((r: any) => [r.skill_category as SkillCategory, r.level as AthleteSkillLevel]),
-  );
   const nameById = new Map((movements ?? []).map((m: any) => [m.id, m.canonical_name as string]));
-  const skillLadderByMovementId = new Map<string, Partial<Record<AthleteSkillLevel, string>>>();
+  const scaleByMovementId = new Map<string, { intermediate?: string; beginner?: string }>();
   for (const row of (movementScaleRows ?? []) as any[]) {
     const scaleName = nameById.get(row.scale_movement_id);
     if (!scaleName) continue;
-    const entry = skillLadderByMovementId.get(row.movement_id) ?? {};
-    entry[row.tier as AthleteSkillLevel] = scaleName;
-    skillLadderByMovementId.set(row.movement_id, entry);
+    const entry = scaleByMovementId.get(row.movement_id) ?? {};
+    entry[row.tier as 'intermediate' | 'beginner'] = scaleName;
+    scaleByMovementId.set(row.movement_id, entry);
   }
   const equipmentSubByMovementId = new Map<string, string>();
   for (const row of (equipmentSubstituteRows ?? []) as any[]) {
@@ -80,36 +48,13 @@ export default async function MovementsPage({
     if (subName) equipmentSubByMovementId.set(row.movement_id, subName);
   }
 
-  function gapFor(m: { canonical_name: string; equipment: string[] }) {
-    return checkEquipmentGap(m.canonical_name, m.equipment ?? [], ownedTags);
-  }
-
   const filtered = (movements ?? []).filter((m) => {
     if (modalityFilter && m.modality !== modalityFilter) return false;
     if (q && !m.canonical_name.toLowerCase().includes(q.toLowerCase())) return false;
-    if (gearFilter === 'mine' && hasRecordedEquipment && !gapFor(m).ok) return false;
     return true;
   });
 
   const modalities: Modality[] = ['M', 'G', 'W'];
-
-  // "MISSING GEAR" summary (mockup's bottom card) -- computed across the
-  // WHOLE catalog, not just the current filter, so it stays a stable "here's
-  // what's holding you back overall" rather than shifting with the search box.
-  const missingAcrossCatalog = (() => {
-    if (!hasRecordedEquipment) return null;
-    const missingTags = new Set<string>();
-    let affectedCount = 0;
-    for (const m of movements ?? []) {
-      const gap = gapFor(m);
-      if (!gap.ok) {
-        affectedCount += 1;
-        for (const tag of gap.missingEquipment) missingTags.add(tag);
-      }
-    }
-    if (affectedCount === 0) return null;
-    return { missingTags: [...missingTags], affectedCount };
-  })();
 
   return (
     <main className="hw-shell">
@@ -152,16 +97,6 @@ export default async function MovementsPage({
                 {m}
               </button>
             ))}
-            {hasRecordedEquipment && (
-              <button
-                type="submit"
-                name="gear"
-                value={gearFilter === 'mine' ? '' : 'mine'}
-                className={`hw-chip${gearFilter === 'mine' ? ' hw-chip-on' : ''}`}
-              >
-                MY GEAR
-              </button>
-            )}
           </div>
         </form>
 
@@ -173,10 +108,8 @@ export default async function MovementsPage({
           )}
 
           {filtered.map((m) => {
-            const gap = hasRecordedEquipment ? gapFor(m) : null;
-            const ladder = m.skill_category ? skillLadderByMovementId.get(m.id) : undefined;
-            const currentLevel = m.skill_category ? skillLevels.get(m.skill_category) ?? 'rx' : null;
-            const equipmentSub = !m.skill_category ? equipmentSubByMovementId.get(m.id) : undefined;
+            const scale = scaleByMovementId.get(m.id);
+            const equipmentSub = equipmentSubByMovementId.get(m.id);
 
             return (
               <div key={m.id} className="hw-card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -192,38 +125,27 @@ export default async function MovementsPage({
                   }}
                 >
                   <span className="hw-h3" style={{ fontSize: 16, color: MODALITY_HEADER_TEXT[m.modality] }}>{m.canonical_name.toUpperCase()}</span>
-                  <span className="hw-pill hw-pill-dark">{gap && !gap.ok ? 'NO GEAR' : m.modality}</span>
+                  <span className="hw-pill hw-pill-dark">{m.modality}</span>
                 </div>
                 <div style={{ padding: 14 }}>
-                  <div
-                    className="hw-label"
-                    style={{ color: gap && !gap.ok ? 'var(--hw-pink-deep)' : undefined, opacity: gap && !gap.ok ? 1 : 0.6 }}
-                  >
+                  <div className="hw-label" style={{ opacity: 0.6 }}>
                     NEEDS · {(m.equipment ?? []).length ? m.equipment.join(', ').toUpperCase() : 'BODYWEIGHT'}
-                    {gap && (gap.ok ? ' · YOU HAVE IT' : ` · NOT ON YOUR LIST`)}
                   </div>
 
-                  {ladder && (
-                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {(['rx', 'intermediate', 'beginner'] as AthleteSkillLevel[]).map((tier) => {
-                        const name = tier === 'rx' ? m.canonical_name : ladder[tier];
-                        if (!name) return null;
-                        const badge = TIER_BADGE[tier];
-                        return (
-                          <div key={tier} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <span
-                              className="hw-pill"
-                              style={{ background: badge.bg, color: badge.color, width: 42, justifyContent: 'center', flex: 'none' }}
-                            >
-                              {badge.label}
-                            </span>
-                            <span style={{ font: '700 12px/1.3 "Space Grotesk", sans-serif' }}>
-                              {name}
-                              {currentLevel === tier && <span className="hw-muted" style={{ fontWeight: 400 }}> ← you</span>}
-                            </span>
-                          </div>
-                        );
-                      })}
+                  {(scale?.intermediate || scale?.beginner) && (
+                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {scale.intermediate && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span className="hw-pill" style={{ background: 'var(--hw-cyan)', color: 'var(--hw-ink)', width: 42, justifyContent: 'center', flex: 'none' }}>INT</span>
+                          <span style={{ font: '700 12px/1.3 "Space Grotesk", sans-serif' }}>{scale.intermediate}</span>
+                        </div>
+                      )}
+                      {scale.beginner && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span className="hw-pill" style={{ background: 'var(--hw-orange)', color: 'var(--hw-ink)', width: 42, justifyContent: 'center', flex: 'none' }}>BEG</span>
+                          <span style={{ font: '700 12px/1.3 "Space Grotesk", sans-serif' }}>{scale.beginner}</span>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -237,20 +159,6 @@ export default async function MovementsPage({
             );
           })}
         </div>
-
-        {missingAcrossCatalog && (
-          <div className="hw-card" style={{ marginTop: 14, background: 'var(--hw-violet)', color: 'var(--hw-paper)' }}>
-            <span className="hw-label">MISSING GEAR</span>
-            <p style={{ fontSize: 13, marginTop: 8 }}>
-              {missingAcrossCatalog.missingTags.join(', ')} {missingAcrossCatalog.missingTags.length === 1 ? "isn't" : "aren't"} on your list.{' '}
-              {missingAcrossCatalog.affectedCount} movement{missingAcrossCatalog.affectedCount === 1 ? '' : 's'} in the catalog need
-              {missingAcrossCatalog.affectedCount === 1 ? 's' : ''} a manual scale because of it.
-            </p>
-            <Link href="/account" className="hw-btn hw-btn-mustard" style={{ marginTop: 12, fontSize: 14, padding: 12 }}>
-              Fix my gear list →
-            </Link>
-          </div>
-        )}
       </div>
     </main>
   );

@@ -6,20 +6,23 @@ import LogoutButton from '@/components/LogoutButton';
 import { createClient } from '@/lib/supabase/client';
 import TabBar from '@/components/TabBar';
 import TopBar from '@/components/TopBar';
-import { EQUIPMENT_OPTIONS, SKILL_CATEGORIES, LEVELS, type SkillCategoryKey, type SkillLevelValue } from '@/lib/equipment';
 
 // Consolidated account hub (John's request, 2026-09-07: "we should have an
 // 'account' page, too, for athletes" -- and when asked how far to take it,
 // "consolidate everything"). Replaces /settings as the main athlete-facing
-// settings surface: everything that page had (gear, skill level, password)
-// lives here too, plus two things that had no UI anywhere before now --
+// settings surface, plus two things that had no UI anywhere before now --
 // profile basics (profiles.display_name/timezone, columns that existed
 // since the very first migration but were never editable) and a compact
 // billing summary linking out to /billing rather than duplicating that
 // page's checkout logic here. /settings itself now just redirects here
 // (see app/settings/page.tsx) so no existing link/bookmark breaks.
-// Equipment/skill constants live in lib/equipment.ts -- shared with
-// app/onboarding, which needs the exact same 21 tags and 6 categories.
+//
+// Gear/skill-level personalization removed (John's call, 2026-09-29): Rx /
+// Scaled / Minimal on /wod replaces per-athlete equipment/skill resolution
+// with fixed, pre-authored workout variants, so there's nothing here left
+// to resolve against. "Your track" is what's left worth an explicit save --
+// switching used to bounce out to the full onboarding wizard just to change
+// one selection; it's inline here now, with its own Save changes button.
 
 type LoadState = 'loading' | 'ready' | 'error';
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -38,16 +41,11 @@ export default function AccountPage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
 
-  const [equipment, setEquipment] = useState<Set<string>>(new Set());
-  const [skillLevels, setSkillLevels] = useState<Record<string, SkillLevelValue>>({});
-  const [saveState, setSaveState] = useState<SaveState>('idle');
-  // Snapshots of what's actually saved, so the sticky bar (mockup 3d's
-  // "UNSAVED CHANGES · N EDITS") can report a real edit count instead of
-  // just "there might be changes."
-  const [savedEquipment, setSavedEquipment] = useState<Set<string>>(new Set());
-  const [savedSkillLevels, setSavedSkillLevels] = useState<Record<string, SkillLevelValue>>({});
-
-  const [trackNames, setTrackNames] = useState<string[]>([]);
+  const [tracks, setTracks] = useState<{ id: string; name: string }[]>([]);
+  const [activeProgramIds, setActiveProgramIds] = useState<string[]>([]);
+  const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
+  const [trackSaveState, setTrackSaveState] = useState<SaveState>('idle');
+  const [trackError, setTrackError] = useState<string | null>(null);
 
   const [newPassword, setNewPassword] = useState('');
   const [passwordState, setPasswordState] = useState<SaveState>('idle');
@@ -75,14 +73,11 @@ export default function AccountPage() {
 
       const [
         { data: profileRow, error: profileFetchError },
-        { data: equipmentRows, error: equipmentError },
-        { data: skillRows, error: skillError },
         { data: subscriptionRow },
+        { data: programRows },
         { data: enrollmentRows },
       ] = await Promise.all([
         supabase.from('profiles').select('display_name, avatar_url, timezone').eq('id', user.id).single(),
-        supabase.from('profile_equipment').select('equipment_tag').eq('profile_id', user.id),
-        supabase.from('profile_skill_levels').select('skill_category, level').eq('profile_id', user.id),
         supabase
           .from('subscriptions')
           .select('status, plans ( name )')
@@ -90,15 +85,16 @@ export default function AccountPage() {
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
-        // "YOUR TRACK" card (mockup 3d) -- every program this athlete is
-        // currently active in. Multiple is a supported state (per the
-        // design chat: an athlete can be enrolled in more than one
-        // program), so this lists all of them rather than assuming one.
-        supabase.from('program_enrollments').select('programs ( name )').eq('profile_id', user.id).eq('active', true),
+        // "YOUR TRACK" card -- every track a coach has set up, for the picker.
+        supabase.from('programs').select('id, name').order('name'),
+        // Every program this athlete is currently active in. Multiple is a
+        // supported state (an athlete can be enrolled in more than one
+        // program), so this tracks all of them, not just one.
+        supabase.from('program_enrollments').select('program_id').eq('profile_id', user.id).eq('active', true),
       ]);
 
-      if (profileFetchError || equipmentError || skillError) {
-        setError((profileFetchError ?? equipmentError ?? skillError)!.message);
+      if (profileFetchError) {
+        setError(profileFetchError.message);
         setLoadState('error');
         return;
       }
@@ -106,13 +102,10 @@ export default function AccountPage() {
       setDisplayName(profileRow?.display_name ?? '');
       setAvatarUrl(profileRow?.avatar_url ?? null);
       setTimezone(profileRow?.timezone ?? 'UTC');
-      const loadedEquipment = new Set<string>((equipmentRows ?? []).map((r: any) => r.equipment_tag));
-      const loadedSkillLevels = Object.fromEntries((skillRows ?? []).map((r: any) => [r.skill_category, r.level]));
-      setEquipment(loadedEquipment);
-      setSkillLevels(loadedSkillLevels);
-      setSavedEquipment(loadedEquipment);
-      setSavedSkillLevels(loadedSkillLevels);
-      setTrackNames((enrollmentRows ?? []).map((r: any) => r.programs?.name).filter(Boolean));
+      setTracks((programRows ?? []).map((p: any) => ({ id: p.id, name: p.name })));
+      const activeIds = (enrollmentRows ?? []).map((r: any) => r.program_id as string);
+      setActiveProgramIds(activeIds);
+      setSelectedTrackId(activeIds[0] ?? null);
       if (subscriptionRow) {
         setBilling({ status: subscriptionRow.status, planName: (subscriptionRow as any).plans?.name ?? 'Plan' });
       }
@@ -120,13 +113,44 @@ export default function AccountPage() {
     })();
   }, []);
 
-  function toggleEquipment(tag: string) {
-    setEquipment((prev) => {
-      const next = new Set(prev);
-      if (next.has(tag)) next.delete(tag);
-      else next.add(tag);
-      return next;
-    });
+  async function handleSaveTrack() {
+    if (!selectedTrackId || selectedTrackId === activeProgramIds[0]) return;
+    setTrackSaveState('saving');
+    setTrackError(null);
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setTrackSaveState('error');
+      setTrackError('Not signed in.');
+      return;
+    }
+    const { error: enrollError } = await supabase
+      .from('program_enrollments')
+      .upsert({ profile_id: user.id, program_id: selectedTrackId, active: true }, { onConflict: 'profile_id,program_id' });
+    if (enrollError) {
+      setTrackSaveState('error');
+      setTrackError(enrollError.message);
+      return;
+    }
+    // Single-track assumption (matches onboarding): switching sets the new
+    // one active and retires whatever else this athlete was active in.
+    const otherActiveIds = activeProgramIds.filter((id) => id !== selectedTrackId);
+    if (otherActiveIds.length > 0) {
+      const { error: deactivateError } = await supabase
+        .from('program_enrollments')
+        .update({ active: false })
+        .eq('profile_id', user.id)
+        .in('program_id', otherActiveIds);
+      if (deactivateError) {
+        setTrackSaveState('error');
+        setTrackError(deactivateError.message);
+        return;
+      }
+    }
+    setActiveProgramIds([selectedTrackId]);
+    setTrackSaveState('saved');
   }
 
   async function handleSaveProfile(e: React.FormEvent) {
@@ -276,81 +300,6 @@ export default function AccountPage() {
     }
   }
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    setSaveState('saving');
-    setError(null);
-
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setError('Not signed in.');
-      setSaveState('error');
-      return;
-    }
-
-    // Equipment: full replace. Two round trips (delete, then insert) rather
-    // than a diff -- simpler and correct for a checkbox-set form; this table
-    // has no other per-row data worth preserving.
-    const { error: deleteError } = await supabase.from('profile_equipment').delete().eq('profile_id', user.id);
-    if (deleteError) {
-      setError(deleteError.message);
-      setSaveState('error');
-      return;
-    }
-    if (equipment.size > 0) {
-      const { error: insertError } = await supabase
-        .from('profile_equipment')
-        .insert([...equipment].map((equipment_tag) => ({ profile_id: user.id, equipment_tag })));
-      if (insertError) {
-        setError(insertError.message);
-        setSaveState('error');
-        return;
-      }
-    }
-
-    // Skill levels: upsert one row per category that has a non-default
-    // value recorded. Categories left at 'rx' just don't get a row --
-    // resolveMovementForAthlete already treats "no row" as rx.
-    const skillRowsToSave = SKILL_CATEGORIES.filter((c) => skillLevels[c.key] && skillLevels[c.key] !== 'rx').map((c) => ({
-      profile_id: user.id,
-      skill_category: c.key,
-      level: skillLevels[c.key] as SkillLevelValue,
-      updated_at: new Date().toISOString(),
-    }));
-    const rxCategories: SkillCategoryKey[] = SKILL_CATEGORIES.filter(
-      (c) => !skillLevels[c.key] || skillLevels[c.key] === 'rx',
-    ).map((c) => c.key);
-
-    const [{ error: upsertError }, { error: deleteRxError }] = await Promise.all([
-      skillRowsToSave.length > 0
-        ? supabase.from('profile_skill_levels').upsert(skillRowsToSave, { onConflict: 'profile_id,skill_category' })
-        : Promise.resolve({ error: null }),
-      rxCategories.length > 0
-        ? supabase.from('profile_skill_levels').delete().eq('profile_id', user.id).in('skill_category', rxCategories)
-        : Promise.resolve({ error: null }),
-    ]);
-    if (upsertError || deleteRxError) {
-      setError((upsertError ?? deleteRxError)!.message);
-      setSaveState('error');
-      return;
-    }
-
-    setSavedEquipment(new Set(equipment));
-    setSavedSkillLevels({ ...skillLevels });
-    setSaveState('saved');
-  }
-
-  // Edit count for the sticky bar (mockup 3d: "UNSAVED CHANGES · N EDITS")
-  // -- a real diff against what's actually saved, not just "the form is
-  // open." Skill levels only count a category once even if it's been
-  // flipped back and forth, same as equipment.
-  const equipmentEdits =
-    [...equipment].filter((t) => !savedEquipment.has(t)).length + [...savedEquipment].filter((t) => !equipment.has(t)).length;
-  const skillEdits = SKILL_CATEGORIES.filter((c) => (skillLevels[c.key] ?? 'rx') !== (savedSkillLevels[c.key] ?? 'rx')).length;
-  const unsavedEdits = equipmentEdits + skillEdits;
 
   if (loadState === 'loading') {
     return (
@@ -504,133 +453,63 @@ export default function AccountPage() {
         </div>
       </div>
 
-      <form onSubmit={handleSave} className="hw-wrap" style={{ paddingTop: 0 }}>
+      <div className="hw-wrap" style={{ paddingTop: 0 }}>
         <div className="hw-card" style={{ marginTop: 12 }}>
-          <div className="hw-eyebrow-row">
-            <span className="hw-h3">Your gear</span>
-            <span className="hw-pill hw-pill-outline">{equipment.size} of {EQUIPMENT_OPTIONS.length}</span>
-          </div>
-          <p className="hw-muted" style={{ fontSize: 12, marginTop: 8 }}>
-            Check what you actually have. Anything you skip gets scaled around automatically, where a swap exists.
+          <span className="hw-h3" style={{ fontSize: 15 }}>Your track</span>
+          <p className="hw-muted" style={{ fontSize: 12, marginTop: 4, marginBottom: 12 }}>
+            Which program shows up on your board every morning.
           </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-            {EQUIPMENT_OPTIONS.map((opt) => {
-              const on = equipment.has(opt.tag);
-              return (
-                <label
-                  key={opt.tag}
-                  className={`hw-chip${on ? ' hw-chip-on' : ''}`}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={on}
-                    onChange={() => toggleEquipment(opt.tag)}
-                    style={{ position: 'absolute', opacity: 0, width: 1, height: 1, margin: 0 }}
-                  />
-                  {on ? '✓ ' : ''}
-                  {opt.label.toUpperCase()}
-                </label>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="hw-card" style={{ marginTop: 12 }}>
-          <span className="hw-h3">Skill level</span>
-          <p className="hw-muted" style={{ fontSize: 12, marginTop: 8 }}>
-            Rx is the default. Only move one of these if you&apos;re not doing it as written yet.
-          </p>
-          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {SKILL_CATEGORIES.map((cat) => {
-              const value = skillLevels[cat.key] ?? 'rx';
-              return (
-                <div key={cat.key}>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>
-                    {cat.label}
-                    {cat.hint && <span className="hw-muted" style={{ fontWeight: 400 }}> — {cat.hint}</span>}
-                  </div>
-                  <div
+          {tracks.length === 0 ? (
+            <p className="hw-muted" style={{ margin: 0, fontSize: 13 }}>No tracks are set up yet — ask your coach.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {tracks.map((t) => {
+                const selected = selectedTrackId === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setSelectedTrackId(t.id)}
                     style={{
-                      display: 'flex',
-                      marginTop: 8,
-                      border: '3px solid var(--hw-ink)',
-                      borderRadius: 999,
-                      overflow: 'hidden',
+                      textAlign: 'left',
+                      padding: '12px 14px',
+                      border: selected ? '3px solid var(--hw-pink)' : '2px solid var(--hw-ink)',
+                      borderRadius: 8,
+                      background: selected ? 'var(--hw-violet)' : 'var(--hw-paper)',
+                      color: selected ? 'var(--hw-paper)' : 'var(--hw-ink)',
+                      font: '700 13px/1 "Space Grotesk", sans-serif',
+                      cursor: 'pointer',
                     }}
                   >
-                    {LEVELS.map((lvl, i) => (
-                      <button
-                        key={lvl.value}
-                        type="button"
-                        onClick={() => setSkillLevels((prev) => ({ ...prev, [cat.key]: lvl.value as SkillLevelValue }))}
-                        style={{
-                          flex: 1,
-                          border: 'none',
-                          borderLeft: i > 0 ? '3px solid var(--hw-ink)' : 'none',
-                          padding: '11px 0',
-                          font: '700 10px/1 "Space Mono", monospace',
-                          color: value === lvl.value && lvl.value !== 'rx' ? 'var(--hw-ink)' : 'var(--hw-ink)',
-                          background:
-                            value === lvl.value
-                              ? lvl.value === 'rx'
-                                ? 'var(--hw-violet)'
-                                : lvl.value === 'intermediate'
-                                  ? 'var(--hw-cyan)'
-                                  : 'var(--hw-orange)'
-                              : 'var(--hw-paper)',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {lvl.value.slice(0, 3).toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+                    {selected ? '✓ ' : ''}{t.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
+              onClick={handleSaveTrack}
+              disabled={trackSaveState === 'saving' || !selectedTrackId || selectedTrackId === activeProgramIds[0]}
+              className="hw-btn hw-btn-dark"
+              style={{
+                width: 'auto',
+                padding: '10px 18px',
+                fontSize: 13,
+                opacity: !selectedTrackId || selectedTrackId === activeProgramIds[0] ? 0.6 : 1,
+              }}
+            >
+              {trackSaveState === 'saving' ? 'Saving…' : 'Save changes'}
+            </button>
+            {trackSaveState === 'saved' && <span className="hw-pill hw-pill-cyan">Saved</span>}
+            {trackSaveState === 'error' && trackError && (
+              <span className="hw-error" style={{ fontSize: 12 }}>{trackError}</span>
+            )}
           </div>
         </div>
+      </div>
 
-        <div className="hw-card" style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <div>
-            <span className="hw-h3" style={{ fontSize: 15 }}>YOUR TRACK</span>
-            <p className="hw-muted" style={{ fontSize: 12, marginTop: 4 }}>
-              {trackNames.length > 0 ? trackNames.join(' + ') : 'Not enrolled in a program yet.'}
-            </p>
-          </div>
-          <Link href="/onboarding?switch=1" className="hw-pill hw-pill-outline" style={{ flex: 'none' }}>
-            {trackNames.length > 0 ? 'SWITCH' : 'PICK ONE →'}
-          </Link>
-        </div>
-
-        <div className="hw-sticky-bar">
-          <span className="hw-label" style={{ flex: 1 }}>
-            {saveState === 'saved'
-              ? 'SAVED'
-              : saveState === 'error'
-                ? 'SAVE FAILED'
-                : unsavedEdits > 0
-                  ? `UNSAVED CHANGES · ${unsavedEdits} EDIT${unsavedEdits === 1 ? '' : 'S'}`
-                  : 'NO CHANGES'}
-          </span>
-          <button
-            type="submit"
-            disabled={saveState === 'saving' || unsavedEdits === 0}
-            className="hw-btn hw-btn-dark"
-            style={{ width: 'auto', padding: '13px 22px', opacity: unsavedEdits === 0 ? 0.6 : 1 }}
-          >
-            {saveState === 'saving' ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-        {saveState === 'error' && error && (
-          <p className="hw-error" style={{ padding: '0 0 20px' }}>{error}</p>
-        )}
-      </form>
-
-      {/* Separate form, deliberately outside the equipment/skill form above --
-          this saves to auth, not to profile_equipment or profile_skill_levels, so it
-          has its own submit action and its own save state. */}
       <div className="hw-wrap" style={{ paddingTop: 0, paddingBottom: 100 }}>
         <form onSubmit={handleSetPassword} className="hw-card" style={{ marginTop: 4, marginBottom: 24 }}>
           <span className="hw-eyebrow">Password sign-in</span>

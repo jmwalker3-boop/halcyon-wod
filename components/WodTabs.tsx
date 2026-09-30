@@ -2,51 +2,43 @@
 
 import { useState } from 'react';
 
-// AS WRITTEN / MY RX toggle (mockup screen 2b) -- both panes are rendered
+// RX / SCALED / MINIMAL toggle (replaces the old As Written / My Rx toggle,
+// John's call 2026-09-29): fixed, pre-authored workout variants instead of
+// live per-athlete equipment/skill resolution. All three panes are rendered
 // server-side and handed down as children; this just shows one at a time.
-// Keeping the split at the client/server boundary this way means the
-// (possibly expensive) resolver output computed in app/dashboard/page.tsx
-// doesn't need a second round trip just to flip a tab.
-export default function WodTabs({ asWritten, myRx }: { asWritten: React.ReactNode; myRx: React.ReactNode }) {
-  const [tab, setTab] = useState<'as_written' | 'my_rx'>('as_written');
+export default function WodTabs({ rx, scaled, minimal }: { rx: React.ReactNode; scaled: React.ReactNode; minimal: React.ReactNode }) {
+  const [tab, setTab] = useState<'rx' | 'scaled' | 'minimal'>('rx');
+
+  const TABS: { key: 'rx' | 'scaled' | 'minimal'; label: string }[] = [
+    { key: 'rx', label: 'Rx' },
+    { key: 'scaled', label: 'Scaled' },
+    { key: 'minimal', label: 'Minimal' },
+  ];
 
   return (
     <div>
       <div style={{ display: 'flex', gap: 8 }}>
-        <button
-          type="button"
-          onClick={() => setTab('as_written')}
-          className="hw-btn"
-          style={{
-            width: 'auto',
-            padding: '11px 16px',
-            fontSize: 12,
-            border: '3px solid var(--hw-ink)',
-            background: tab === 'as_written' ? 'var(--hw-pink)' : 'var(--hw-paper)',
-            color: tab === 'as_written' ? 'var(--hw-paper)' : 'var(--hw-ink)',
-            boxShadow: tab === 'as_written' ? '3px 3px 0 var(--hw-ink)' : undefined,
-          }}
-        >
-          As written
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab('my_rx')}
-          className="hw-btn"
-          style={{
-            width: 'auto',
-            padding: '11px 16px',
-            fontSize: 12,
-            border: '3px solid var(--hw-ink)',
-            background: tab === 'my_rx' ? 'var(--hw-pink)' : 'var(--hw-paper)',
-            color: tab === 'my_rx' ? 'var(--hw-paper)' : 'var(--hw-ink)',
-            boxShadow: tab === 'my_rx' ? '3px 3px 0 var(--hw-ink)' : undefined,
-          }}
-        >
-          My Rx
-        </button>
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            className="hw-btn"
+            style={{
+              width: 'auto',
+              padding: '11px 16px',
+              fontSize: 12,
+              border: '3px solid var(--hw-ink)',
+              background: tab === t.key ? 'var(--hw-pink)' : 'var(--hw-paper)',
+              color: tab === t.key ? 'var(--hw-paper)' : 'var(--hw-ink)',
+              boxShadow: tab === t.key ? '3px 3px 0 var(--hw-ink)' : undefined,
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
-      <div style={{ marginTop: 12 }}>{tab === 'as_written' ? asWritten : myRx}</div>
+      <div style={{ marginTop: 12 }}>{tab === 'rx' ? rx : tab === 'scaled' ? scaled : minimal}</div>
     </div>
   );
 }
