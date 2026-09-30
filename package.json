@@ -10,7 +10,6 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@blackboxmethod/equipment-resolver": "file:./vendor/equipment-resolver",
     "@blackboxmethod/validator": "file:./vendor/validator",
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.115.0",
